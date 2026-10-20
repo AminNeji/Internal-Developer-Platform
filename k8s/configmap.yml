@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: idp-project
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/idp_project"
+  SPRING_DATASOURCE_USERNAME: "postgres"
+  SPRING_DATA_REDIS_HOST: "redis"
+  ARGOCD_URL: "http://argocd-server.argocd.svc.cluster.local"

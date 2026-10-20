@@ -1,0 +1,85 @@
+<div class="page">
+
+  <header class="pagehead">
+    <div class="titleblock">
+      <h1>Environments</h1>
+      @if (!loading() && !error()) {
+        <p class="count">
+          {{ rows().length }} {{ rows().length === 1 ? 'environment' : 'environments' }}
+        </p>
+      }
+    </div>
+    <a class="btn btn--primary" routerLink="/environments/new">New environment</a>
+  </header>
+
+  @if (loading()) {
+
+    <div class="panel state">
+      <p>Loading environments…</p>
+    </div>
+
+  } @else if (error()) {
+
+    <div class="panel state">
+      <p class="err">{{ error() }}</p>
+      <button type="button" class="btn btn--ghost" (click)="load()">Retry</button>
+    </div>
+
+  } @else if (rows().length === 0) {
+
+    <div class="panel state empty">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="1.4" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="5" rx="1.5"></rect>
+        <rect x="3" y="13" width="18" height="5" rx="1.5"></rect>
+        <circle cx="7" cy="6.5" r=".9" fill="currentColor" stroke="none"></circle>
+        <circle cx="7" cy="15.5" r=".9" fill="currentColor" stroke="none"></circle>
+      </svg>
+      <h2>No environments yet</h2>
+      <p>Creating one renders its manifests, pushes them to Git, and lets ArgoCD sync it to the cluster.</p>
+      <a class="btn btn--primary" routerLink="/environments/new">New environment</a>
+    </div>
+
+  } @else {
+
+    <div class="panel">
+      <div class="tablescroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Environment</th>
+              <th>Sync</th>
+              <th>Health</th>
+              <th>Created</th>
+              <th><span class="sr-only">Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.envId) {
+              <tr tabindex="0"
+                  (click)="open(row.envId)"
+                  (keydown.enter)="open(row.envId)"
+                  (keydown.space)="open(row.envId)">
+                <td>
+                  <div class="envid">{{ row.envId }}</div>
+                  <div class="envsub">{{ row.team }} · {{ row.type }}</div>
+                </td>
+                <td><app-status-badge [status]="row.argo.syncStatus" /></td>
+                <td><app-status-badge [status]="row.argo.healthStatus" /></td>
+                <td><span class="when">{{ relative(row.createdAt) }}</span></td>
+                <td class="chev">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="m9 6 6 6-6 6"></path>
+                  </svg>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  }
+
+</div>

@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"jira-plugin.workingProject": "",
+		"java.compile.nullAnalysis.mode": "disabled"
+	}
+}

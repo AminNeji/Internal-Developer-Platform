@@ -1,0 +1,124 @@
+<div class="page page--narrow">
+
+  <a class="back" routerLink="/environments">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="m15 18-6-6 6-6"></path>
+    </svg>
+    Environments
+  </a>
+
+  <h1>New environment</h1>
+  <p class="lede">
+    Each service becomes a Deployment, a Service, and an Ingress path inside the
+    environment's own namespace.
+  </p>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+
+    <section class="panel block">
+      <div class="grid2">
+        <div class="field">
+          <label for="team">Team</label>
+          <input id="team" type="text" formControlName="team" placeholder="payments"
+                 autocomplete="off" spellcheck="false">
+          @if (invalid(form.controls.team)) {
+            <p class="fielderr">A team name is required.</p>
+          }
+        </div>
+
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type" formControlName="type">
+            @for (t of types; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="preview">
+        <span class="previewlabel">Generated ID</span>
+        <span class="previewvalue">{{ envIdPreview() }}<span class="suffix">&lt;unique&gt;</span></span>
+        <p class="previewnote">
+          The platform lowercases your input and replaces anything outside a-z, 0-9 and
+          dashes, then appends a unique suffix. This is also the Kubernetes namespace.
+        </p>
+      </div>
+    </section>
+
+    <section class="panel block" formArrayName="services">
+      <header class="blockhead">
+        <h2>Services</h2>
+        <span class="svccount">{{ services.length }}</span>
+      </header>
+
+      @for (svc of services.controls; track $index) {
+        <div class="svcrow" [formGroupName]="$index">
+          <div class="field">
+            <label [for]="'name' + $index">Name</label>
+            <input [id]="'name' + $index" type="text" formControlName="serviceName"
+                   placeholder="web" autocomplete="off" spellcheck="false">
+            @if (invalid(svc.controls.serviceName)) {
+              <p class="fielderr">Lowercase letters, numbers and dashes only.</p>
+            }
+          </div>
+
+          <div class="field">
+            <label [for]="'image' + $index">Image</label>
+            <input [id]="'image' + $index" type="text" formControlName="image"
+                   placeholder="nginx:alpine" autocomplete="off" spellcheck="false">
+            @if (invalid(svc.controls.image)) {
+              <p class="fielderr">An image reference is required.</p>
+            }
+          </div>
+
+          <div class="field field--port">
+            <label [for]="'port' + $index">Port</label>
+            <input [id]="'port' + $index" type="number" formControlName="port" min="1" max="65535">
+            @if (invalid(svc.controls.port)) {
+              <p class="fielderr">1&ndash;65535.</p>
+            }
+          </div>
+
+          <div class="field field--path">
+            <label [for]="'path' + $index">Path</label>
+            <input [id]="'path' + $index" type="text" formControlName="path"
+                   placeholder="/" autocomplete="off" spellcheck="false">
+            @if (invalid(svc.controls.path)) {
+              <p class="fielderr">Must start with /</p>
+            }
+          </div>
+
+          <div class="field field--remove">
+            @if (services.length > 1) {
+              <button type="button" class="remove" (click)="removeService($index)"
+                      [attr.aria-label]="'Remove service ' + ($index + 1)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12"></path>
+                </svg>
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      <button type="button" class="btn btn--ghost addbtn" (click)="addService()">
+        + Add service
+      </button>
+    </section>
+
+    @if (error()) {
+      <p class="formerr">{{ error() }}</p>
+    }
+
+    <footer class="actions">
+      <a class="btn btn--ghost" routerLink="/environments">Cancel</a>
+      <button type="submit" class="btn btn--primary" [disabled]="submitting()">
+        {{ submitting() ? 'Creating…' : 'Create environment' }}
+      </button>
+    </footer>
+
+  </form>
+</div>

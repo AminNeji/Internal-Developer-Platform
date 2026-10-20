@@ -1,0 +1,21 @@
+.env
+*.env
+!.env.example
+
+# real Kubernetes secret, applied by hand with kubectl - ArgoCD must never see it in Git
+k8s/secret.yml
+
+# terraform: state holds secrets in plaintext, tfvars holds the db password
+*.tfvars
+!*.tfvars.example
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# JVM crash dumps
+hs_err_pid*.log
+replay_pid*.log
+
+# written at runtime by TemplateService / GitOpsService
+generated-manifests/
+tmp-gitops-repo/

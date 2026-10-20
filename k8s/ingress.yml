@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: idp-ingress
+  namespace: idp-project
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/success-codes: "200"
+spec:
+  ingressClassName: alb
+  rules:
+    # no host: the ALB answers on its own DNS name until there is a real domain
+    - http:
+        paths:
+          # the ALB checks rules in order and "/" matches everything, so /api must come first
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: idp-backend-service
+                port:
+                  number: 8082
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: idp-frontend-service
+                port:
+                  number: 4200

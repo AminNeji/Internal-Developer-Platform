@@ -1,0 +1,44 @@
+.topbar {
+  display: flex;
+  align-items: center;
+  height: 56px;
+  padding-inline: 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+.mark {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--accent);
+  flex: none;
+}
+
+.name {
+  font: 600 14px/1 var(--sans);
+  letter-spacing: -0.01em;
+}
+
+@media (max-width: 560px) {
+  .topbar {
+    padding-inline: 20px;
+  }
+}

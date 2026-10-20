@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idp-backend-deployment
+  namespace: idp-project
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: idp-backend 
+  template:
+    metadata:
+      labels:
+        app: idp-backend
+    spec:
+      containers:
+        - name: idp-backend
+          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-backend:latest
+          ports:
+            - containerPort: 8082
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          envFrom:
+            - configMapRef:
+                name: app-config
+            - secretRef:
+                name: app-secret

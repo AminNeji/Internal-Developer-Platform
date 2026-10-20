@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: idp-frontend-service
+  namespace: idp-project
+spec:
+  selector:
+    app: idp-frontend
+  ports:
+      - port: 4200
+        targetPort: 4200

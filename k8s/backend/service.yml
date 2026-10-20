@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: idp-backend-service
+  namespace: idp-project
+  annotations:
+    # overrides the Ingress-wide "/" check: Spring has nothing mapped at "/" and returns 404
+    alb.ingress.kubernetes.io/healthcheck-path: /api/environment
+spec:
+  selector:
+    app: idp-backend
+  ports:
+      - port: 8082
+        targetPort: 8082

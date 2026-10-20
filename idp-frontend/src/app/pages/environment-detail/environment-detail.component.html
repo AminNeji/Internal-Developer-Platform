@@ -1,0 +1,139 @@
+<div class="page page--narrow">
+
+  <a class="back" routerLink="/environments">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="m15 18-6-6 6-6"></path>
+    </svg>
+    Environments
+  </a>
+
+  @if (loading()) {
+
+    <div class="panel state">
+      <p>Loading environment…</p>
+    </div>
+
+  } @else if (error()) {
+
+    <div class="panel state">
+      <p class="err">{{ error() }}</p>
+      <button type="button" class="btn btn--ghost" (click)="load()">Retry</button>
+    </div>
+
+  } @else {
+
+    @let environment = env();
+
+    @if (environment) {
+
+    <header class="dhead">
+      <div class="idblock">
+        <h1>{{ environment.envId }}</h1>
+        <div class="badges">
+          <app-status-badge [status]="argo().syncStatus" />
+          <app-status-badge [status]="argo().healthStatus" />
+        </div>
+      </div>
+    </header>
+
+    <section class="panel meta">
+      <div class="metaitem">
+        <span class="metalabel">Team</span>
+        <span class="metavalue">{{ environment.team }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Type</span>
+        <span class="metavalue">{{ environment.type }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Namespace</span>
+        <span class="metavalue mono">{{ environment.envId }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Platform status</span>
+        <span class="metavalue">{{ environment.status }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Created</span>
+        <span class="metavalue">{{ formatDate(environment.createdAt) }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Last active</span>
+        <span class="metavalue">{{ formatDate(environment.lastActiveAt) }}</span>
+      </div>
+      <div class="metaitem metaitem--wide">
+        <span class="metalabel">URL</span>
+        @if (environment.url) {
+          <a class="metavalue mono link" [href]="environment.url" target="_blank" rel="noopener">
+            {{ environment.url }}
+          </a>
+        } @else {
+          <span class="metavalue muted">Not assigned by the backend yet</span>
+        }
+      </div>
+    </section>
+
+    <section class="panel block">
+      <header class="blockhead">
+        <h2>Services</h2>
+        <span class="svccount">{{ environment.services.length }}</span>
+      </header>
+
+      @if (environment.services.length === 0) {
+        <p class="emptysvc">No services recorded for this environment.</p>
+      } @else {
+        <div class="tablescroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Image</th>
+                <th>Port</th>
+                <th>Path</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (svc of environment.services; track svc.serviceName) {
+                <tr>
+                  <td class="mono">{{ svc.serviceName }}</td>
+                  <td class="mono">{{ svc.image }}</td>
+                  <td class="mono num">{{ svc.port }}</td>
+                  <td class="mono">{{ svc.path }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel danger">
+      <h2>Destroy this environment</h2>
+      <p class="dangernote">
+        This deletes the ArgoCD application with cascade, which removes the running workloads
+        from the cluster. The generated manifests stay in the GitOps repository.
+      </p>
+
+      <label class="confirmlabel" for="confirm">
+        Type <span class="mono">{{ environment.envId }}</span> to confirm
+      </label>
+      <div class="confirmrow">
+        <input id="confirm" type="text" autocomplete="off" spellcheck="false"
+               [value]="confirmText()" (input)="onConfirmInput($event)">
+        <button type="button" class="btn btn--danger"
+                [disabled]="!canDestroy()" (click)="destroy()">
+          {{ destroying() ? 'Destroying…' : 'Destroy' }}
+        </button>
+      </div>
+
+      @if (destroyError()) {
+        <p class="formerr">{{ destroyError() }}</p>
+      }
+    </section>
+
+    }
+
+  }
+
+</div>

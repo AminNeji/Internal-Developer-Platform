@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: idp-frontend-deployment
+  namespace: idp-project
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: idp-frontend
+  template:
+    metadata:
+      labels:
+        app: idp-frontend
+    spec:
+      containers:
+        - name: idp-frontend
+          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:latest
+          ports:
+            - containerPort: 4200
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "300m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"

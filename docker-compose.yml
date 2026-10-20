@@ -1,0 +1,91 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: idp_project_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idp_project
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 2003
+    ports:
+      - "5433:5432"
+    volumes:
+      - idp_project_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d idp_project"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: idp_project_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --save 20 1 --requirepass redispassword
+    volumes:
+      - cache:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redispassword", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./idp-backend
+      dockerfile: Dockerfile
+    container_name: idp_project_backend
+    restart: unless-stopped
+    environment:
+      # inside the compose network you reach the container port (5432),
+      # not the port published to the host (5433)
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/idp_project
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: 2003
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: redispassword
+      GIT_PASSWORD: ${GIT_PASSWORD:-}
+      ARGOCD_URL: ${ARGOCD_URL:-https://localhost:8080}
+      ARGOCD_TOKEN: ${ARGOCD_TOKEN:-}
+    ports:
+      - "8082:8082"
+      # the image's CMD starts the JDWP agent on 5005; publish it to attach a debugger
+      - "5005:5005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./idp-frontend
+      dockerfile: Dockerfile
+    container_name: idp_project_frontend
+    restart: unless-stopped
+    command:
+      - npx
+      - ng
+      - serve
+      - --host=0.0.0.0
+      - --poll=2000
+      - --disable-host-check
+      - --proxy-config=proxy.conf.docker.json
+    ports:
+      - "4200:4200"
+    volumes:
+      # bind the source so --poll actually picks up your edits,
+      # and keep the container's linux node_modules from being shadowed
+      - ./idp-frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  idp_project_pgdata:
+  cache:
+    driver: local

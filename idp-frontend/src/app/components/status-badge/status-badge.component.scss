@@ -1,0 +1,61 @@
+:host {
+  display: inline-flex;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px 6px 9px;
+  border-radius: 999px;
+  font: 500 12px/1 var(--sans);
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  flex: none;
+}
+
+.badge--healthy {
+  color: var(--status-healthy);
+  background: color-mix(in srgb, var(--status-healthy) 15%, transparent);
+}
+
+.badge--outofsync {
+  color: var(--status-outofsync);
+  background: color-mix(in srgb, var(--status-outofsync) 15%, transparent);
+}
+
+.badge--progressing {
+  color: var(--status-progressing);
+  background: color-mix(in srgb, var(--status-progressing) 15%, transparent);
+}
+
+.badge--degraded {
+  color: var(--status-degraded);
+  background: color-mix(in srgb, var(--status-degraded) 15%, transparent);
+}
+
+.badge--unknown {
+  color: var(--status-unknown);
+  background: color-mix(in srgb, var(--status-unknown) 18%, transparent);
+}
+
+.badge--progressing .dot {
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge--progressing .dot {
+    animation: none;
+  }
+}

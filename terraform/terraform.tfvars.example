@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+# RDS requires a master password of at least 8 characters.
+db_password = ""
+
+# Optional - defaults to "idp-cluster"
+# cluster_name = "idp-cluster"

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: environment
+description: One ephemeral environment created by the IDP
+type: application
+version: 0.1.0
