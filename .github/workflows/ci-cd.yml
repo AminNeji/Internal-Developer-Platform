@@ -96,7 +96,7 @@ jobs:
   Build_AND_PUSH:
     name: Build and push Docker Images to Amazon ECR
     runs-on: ubuntu-latest
-    environment: idp-project
+    environment: IDP
     needs: [Build,Test,SecurityScan]
     permissions:
       contents: write
