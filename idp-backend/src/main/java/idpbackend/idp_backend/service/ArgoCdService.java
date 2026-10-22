@@ -1,8 +1,8 @@
 package idpbackend.idp_backend.service;
 
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -67,29 +67,44 @@ public class ArgoCdService {
                 .toBodilessEntity();
     }
 
+    // read as a plain Map: Spring Boot 4 parses JSON with Jackson 3, and Jackson 2 types
+    // such as com.fasterxml JsonNode (still on the classpath via fabric8) fail at runtime
     public ApplicationStatus getApplicationStatus(String envId) {
-        JsonNode response = restClient.get()
+        Map<String, Object> response = restClient.get()
                 .uri("/api/v1/applications/{name}", envId)
                 .retrieve()
-                .body(JsonNode.class);
+                .body(new ParameterizedTypeReference<Map<String, Object>>() {});
 
-        JsonNode status = response.path("status");
+        Map<String, Object> status = child(response, "status");
 
         // ArgoCD lists the load balancer address here once the environment's Ingress has
         // one; with several paths it lists one URL per path, so the shortest is the root
         String url = null;
-        for (JsonNode node : status.path("summary").path("externalURLs")) {
-            String candidate = node.asText();
-            if (url == null || candidate.length() < url.length()) {
-                url = candidate;
+        if (child(status, "summary").get("externalURLs") instanceof List<?> urls) {
+            for (Object entry : urls) {
+                String candidate = String.valueOf(entry);
+                if (url == null || candidate.length() < url.length()) {
+                    url = candidate;
+                }
             }
         }
 
         return new ApplicationStatus(
-                status.path("sync").path("status").asText("Unknown"),
-                status.path("health").path("status").asText("Unknown"),
+                text(child(status, "sync"), "status"),
+                text(child(status, "health"), "status"),
                 url
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> child(Map<String, Object> map, String key) {
+        Object value = map == null ? null : map.get(key);
+        return value instanceof Map ? (Map<String, Object>) value : Map.of();
+    }
+
+    private static String text(Map<String, Object> map, String key) {
+        Object value = map.get(key);
+        return value == null ? "Unknown" : value.toString();
     }
 
     public record ApplicationStatus(String syncStatus, String healthStatus, String url) {
