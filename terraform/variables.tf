@@ -1,9 +1,3 @@
-variable "db_password" {
-    description = "Database password"
-    type = string
-    sensitive = true
-}
-
 variable "cluster_name" {
     type = string
     default= "idp-cluster"

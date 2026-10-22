@@ -13,10 +13,17 @@ module "eks" {
     # creates the OIDC provider that lets a Kubernetes service account assume an IAM role
     enable_irsa = true
 
+    cluster_addons = {
+        aws-ebs-csi-driver = {
+            most_recent              = true
+            service_account_role_arn = module.ebs_csi_irsa.iam_role_arn
+        }
+    }
+
     eks_managed_node_groups = {
         idp_node_group = {
-            desired_size = 2
-            max_size     = 3
+            desired_size = 3
+            max_size     = 4
             min_size     = 1
             instance_types = ["t3.small"]
             # Amazon Linux 2 node images are not published for recent EKS versions

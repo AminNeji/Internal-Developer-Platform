@@ -11,6 +11,8 @@ k8s/secret.yml
 .terraform/
 *.tfstate
 *.tfstate.*
+tfplan
+*.tfplan
 
 # JVM crash dumps
 hs_err_pid*.log
@@ -19,3 +21,6 @@ replay_pid*.log
 # written at runtime by TemplateService / GitOpsService
 generated-manifests/
 tmp-gitops-repo/
+
+k8s/secret.yml
+k8s/database/secret.yml

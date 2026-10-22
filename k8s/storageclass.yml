@@ -1,0 +1,15 @@
+# EKS clusters created on 1.30+ no longer ship a default "gp2" StorageClass, so the
+# cluster has none until this one is applied. gp3 is cheaper and faster than gp2.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: gp3
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+parameters:
+  type: gp3
+reclaimPolicy: Delete
+# create the disk only once the pod is scheduled, in that node's availability zone -
+# an EBS volume can only attach to a node in the same zone
+volumeBindingMode: WaitForFirstConsumer

@@ -7,4 +7,5 @@ resource "aws_ecr_repository" "idp_registry" {
     encryption_configuration {
         encryption_type = "AES256"
     }
+    force_delete = true
 }
