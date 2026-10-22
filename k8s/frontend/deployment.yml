@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: idp-frontend
-          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:1c8f26a4bbdccdfcfc5ad177b88f12a3a005cf23
+          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:f40ec867ee729134dd29a8867d4b4f52e6a18f24
           ports:
             - containerPort: 4200
           resources:
