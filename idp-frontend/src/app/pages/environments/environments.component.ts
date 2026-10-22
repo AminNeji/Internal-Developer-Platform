@@ -12,6 +12,7 @@ interface EnvironmentRow extends Environment {
 const UNKNOWN_STATUS: ApplicationStatus = {
   syncStatus: 'Unknown',
   healthStatus: 'Unknown',
+  url: null,
 };
 
 @Component({

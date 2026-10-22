@@ -77,6 +77,22 @@ public class EnvironmentService {
         return environment == null ? null : toResponse(environment);
     }
 
+    // live sync/health from ArgoCD; also saves the environment's URL the first time ArgoCD
+    // reports one, since the load balancer address only appears a minute or two after creation
+    public ArgoCdService.ApplicationStatus refreshStatus(String envId) {
+        Environment environment = environmentRepository.findByEnvId(envId);
+        if (environment == null) {
+            return null;
+        }
+
+        ArgoCdService.ApplicationStatus status = argoCdService.getApplicationStatus(envId);
+        if (status.url() != null && !status.url().equals(environment.getUrl())) {
+            environment.setUrl(status.url());
+            environmentRepository.save(environment);
+        }
+        return status;
+    }
+
     public void destroy(String envId) {
         Environment environment = environmentRepository.findByEnvId(envId);
         if (environment != null) {

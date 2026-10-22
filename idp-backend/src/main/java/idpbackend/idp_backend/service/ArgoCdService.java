@@ -74,12 +74,24 @@ public class ArgoCdService {
                 .body(JsonNode.class);
 
         JsonNode status = response.path("status");
+
+        // ArgoCD lists the load balancer address here once the environment's Ingress has
+        // one; with several paths it lists one URL per path, so the shortest is the root
+        String url = null;
+        for (JsonNode node : status.path("summary").path("externalURLs")) {
+            String candidate = node.asText();
+            if (url == null || candidate.length() < url.length()) {
+                url = candidate;
+            }
+        }
+
         return new ApplicationStatus(
                 status.path("sync").path("status").asText("Unknown"),
-                status.path("health").path("status").asText("Unknown")
+                status.path("health").path("status").asText("Unknown"),
+                url
         );
     }
 
-    public record ApplicationStatus(String syncStatus, String healthStatus) {
+    public record ApplicationStatus(String syncStatus, String healthStatus, String url) {
     }
 }

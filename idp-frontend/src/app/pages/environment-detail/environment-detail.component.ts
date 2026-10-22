@@ -9,7 +9,12 @@ import { EnvironmentService } from '../../core/environment.service';
 const UNKNOWN_STATUS: ApplicationStatus = {
   syncStatus: 'Unknown',
   healthStatus: 'Unknown',
+  url: null,
 };
+
+// Healthy and Degraded are where ArgoCD settles; anything else means it is still working
+const isSettled = (status: ApplicationStatus) =>
+  status.healthStatus === 'Healthy' || status.healthStatus === 'Degraded';
 
 @Component({
   selector: 'app-environment-detail',
@@ -67,20 +72,21 @@ export class EnvironmentDetailComponent implements OnInit {
       .pipe(catchError(() => of(UNKNOWN_STATUS)))
       .subscribe(status => {
         this.argo.set(status);
-        if (status.healthStatus === 'Progressing') {
+        if (!isSettled(status)) {
           this.pollStatus();
         }
       });
   }
 
-  // keep polling while a sync is in flight, then stop on its own
+  // a new environment starts out Missing or Progressing, and its URL only appears once
+  // the load balancer exists, so keep polling until ArgoCD settles, then stop on its own
   private pollStatus(): void {
     interval(5000)
       .pipe(
         switchMap(() =>
           this.api.getStatus(this.envId()).pipe(catchError(() => of(UNKNOWN_STATUS))),
         ),
-        takeWhile(status => status.healthStatus === 'Progressing', true),
+        takeWhile(status => !isSettled(status), true),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(status => this.argo.set(status));

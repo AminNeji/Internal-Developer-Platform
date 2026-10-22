@@ -36,4 +36,5 @@ export type HealthStatus =
 export interface ApplicationStatus {
   syncStatus: SyncStatus;
   healthStatus: HealthStatus;
+  url: string | null;
 }

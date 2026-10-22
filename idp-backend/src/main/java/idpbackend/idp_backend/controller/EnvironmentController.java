@@ -62,10 +62,10 @@ public class EnvironmentController {
     }
 
     @GetMapping("/{envId}/status")
-    public ResponseEntity<String> getEnvironmentStatus(@PathVariable String envId) {
-        EnvironmentResponse environment = environmentService.getEnvironmentByEnvId(envId);
-        if (environment != null) {
-            return ResponseEntity.ok(environment.getStatus());
+    public ResponseEntity<ArgoCdService.ApplicationStatus> getEnvironmentStatus(@PathVariable String envId) {
+        ArgoCdService.ApplicationStatus status = environmentService.refreshStatus(envId);
+        if (status != null) {
+            return ResponseEntity.ok(status);
         } else {
             return ResponseEntity.notFound().build();
         }

@@ -64,12 +64,13 @@
       </div>
       <div class="metaitem metaitem--wide">
         <span class="metalabel">URL</span>
-        @if (environment.url) {
-          <a class="metavalue mono link" [href]="environment.url" target="_blank" rel="noopener">
-            {{ environment.url }}
+        @let url = environment.url || argo().url;
+        @if (url) {
+          <a class="metavalue mono link" [href]="url" target="_blank" rel="noopener">
+            {{ url }}
           </a>
         } @else {
-          <span class="metavalue muted">Not assigned by the backend yet</span>
+          <span class="metavalue muted">Waiting for the load balancer — usually 2–3 minutes</span>
         }
       </div>
     </section>
