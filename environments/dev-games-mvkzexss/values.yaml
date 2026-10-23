@@ -1,0 +1,5 @@
+services:
+- serviceName: game
+  image: public.ecr.aws/l6m2t8p7/docker-2048:latest
+  port: 80
+  path: /
