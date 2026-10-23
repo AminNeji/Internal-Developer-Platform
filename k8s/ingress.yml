@@ -8,11 +8,17 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/success-codes: "200"
+
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-north-1:516982327726:certificate/d196c797-16f7-4c4e-aef7-fc77ef3dd1bb
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+
 spec:
   ingressClassName: alb
   rules:
-    # no host: the ALB answers on its own DNS name until there is a real domain
-    - http:
+    # host and http belong to the same rule - a second "-" would start a separate rule
+    - host: idplatform.tech
+      http:
         paths:
           # the ALB checks rules in order and "/" matches everything, so /api must come first
           - path: /api
