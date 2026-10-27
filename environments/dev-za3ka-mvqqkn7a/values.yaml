@@ -1,0 +1,5 @@
+services:
+- serviceName: za3kewi
+  image: nginx:alpine
+  port: 8080
+  path: /za3ka
