@@ -28,7 +28,7 @@ public class EnvironmentService {
     }
 
 
-    public EnvironmentResponse createEnvironment(CreateEnvironmentReq req) throws Exception {
+    public EnvironmentResponse createEnvironment(CreateEnvironmentReq req, String createdBy) throws Exception {
 
         String envId = generateEnvId(req);
 
@@ -48,6 +48,7 @@ public class EnvironmentService {
         environment.setTeam(req.getTeam());
         environment.setType(req.getType());
         environment.setStatus("active");
+        environment.setCreatedBy(createdBy);
         environment.setCreatedAt(Instant.now());
 
         if (req.getServices() != null) {
@@ -120,6 +121,7 @@ public class EnvironmentService {
                 environment.getType(),
                 environment.getStatus(),
                 environment.getUrl(),
+                environment.getCreatedBy(),
                 environment.getCreatedAt(),
                 environment.getLastActiveAt(),
                 services);

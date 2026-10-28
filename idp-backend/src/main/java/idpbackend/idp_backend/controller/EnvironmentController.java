@@ -6,6 +6,8 @@ import idpbackend.idp_backend.dto.EnvironmentResponse;
 import idpbackend.idp_backend.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,8 +37,9 @@ public class EnvironmentController {
     }
 
     @PostMapping("/create")
-    public ResponseEntity<EnvironmentResponse> createEnvironment(@RequestBody CreateEnvironmentReq environmentRequest) throws Exception {
-        EnvironmentResponse environmentResponse = environmentService.createEnvironment(environmentRequest);
+    public ResponseEntity<EnvironmentResponse> createEnvironment(@RequestBody CreateEnvironmentReq environmentRequest,
+                                                                 @AuthenticationPrincipal OAuth2User user) throws Exception {
+        EnvironmentResponse environmentResponse = environmentService.createEnvironment(environmentRequest, user.getAttribute("login"));
 
         return ResponseEntity.ok(environmentResponse);
     }

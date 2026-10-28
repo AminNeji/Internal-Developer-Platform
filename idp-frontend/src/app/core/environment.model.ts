@@ -18,6 +18,8 @@ export interface Environment {
   type: string;
   status: string;
   url: string | null;
+  // null for environments created before login existed
+  createdBy: string | null;
   createdAt: string;
   lastActiveAt: string | null;
   services: ServiceConfig[];

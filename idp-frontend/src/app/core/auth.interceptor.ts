@@ -1,0 +1,18 @@
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
+import { catchError, throwError } from 'rxjs';
+import { AuthService } from './auth.service';
+
+// any 401 means the session is gone - drop back to the sign-in screen
+export const authInterceptor: HttpInterceptorFn = (req, next) => {
+  const auth = inject(AuthService);
+
+  return next(req).pipe(
+    catchError(err => {
+      if (err instanceof HttpErrorResponse && err.status === 401) {
+        auth.signedOut();
+      }
+      return throwError(() => err);
+    }),
+  );
+};

@@ -8,3 +8,5 @@ data:
   SPRING_DATASOURCE_USERNAME: "postgres"
   SPRING_DATA_REDIS_HOST: "redis"
   ARGOCD_URL: "http://argocd-server.argocd.svc.cluster.local"
+  # comma-separated GitHub usernames allowed to sign in
+  IDP_ALLOWED_USERS: "AminNeji"

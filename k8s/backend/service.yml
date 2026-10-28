@@ -4,8 +4,8 @@ metadata:
   name: idp-backend-service
   namespace: idp-project
   annotations:
-    # overrides the Ingress-wide "/" check: Spring has nothing mapped at "/" and returns 404
-    alb.ingress.kubernetes.io/healthcheck-path: /api/environment
+    # overrides the Ingress-wide "/" check: Spring has nothing at "/" and every /api path needs a login
+    alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
 spec:
   selector:
     app: idp-backend

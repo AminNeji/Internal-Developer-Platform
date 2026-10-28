@@ -37,8 +37,62 @@
   letter-spacing: -0.01em;
 }
 
+.account {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.avatar {
+  border-radius: 50%;
+  flex: none;
+}
+
+.login {
+  font: 500 13px/1 var(--sans);
+  color: var(--text-muted);
+}
+
+.signin {
+  display: grid;
+  place-items: center;
+  padding: 96px 20px;
+}
+
+.signin-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 32px;
+  display: grid;
+  gap: 12px;
+
+  h1 {
+    margin: 0;
+    font: 600 20px/1.2 var(--sans);
+  }
+
+  p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .btn {
+    margin-top: 8px;
+    justify-self: start;
+  }
+}
+
+.denied {
+  color: var(--danger) !important;
+}
+
 @media (max-width: 560px) {
   .topbar {
     padding-inline: 20px;
+  }
+
+  .login {
+    display: none;
   }
 }

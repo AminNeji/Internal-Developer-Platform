@@ -27,6 +27,8 @@ public class Environment {
     private String type;
     private String status;
     private String url;
+    // GitHub username of whoever created it
+    private String createdBy;
     private Instant createdAt;
     private Instant lastActiveAt;
 
@@ -95,6 +97,14 @@ public class Environment {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
     }
 
     public Instant getCreatedAt() {

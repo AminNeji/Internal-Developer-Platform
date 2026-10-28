@@ -18,6 +18,7 @@ public class EnvironmentResponse {
     private String type;
     private String status;
     private String url;
+    private String createdBy;
     private Instant createdAt;
     private Instant lastActiveAt;
     private List<ServiceConfig> services;

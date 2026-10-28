@@ -62,7 +62,9 @@
                   (keydown.space)="open(row.envId)">
                 <td>
                   <div class="envid">{{ row.envId }}</div>
-                  <div class="envsub">{{ row.team }} · {{ row.type }}</div>
+                  <div class="envsub">
+                    {{ row.team }} · {{ row.type }}@if (row.createdBy) { · {{ row.createdBy }} }
+                  </div>
                 </td>
                 <td><app-status-badge [status]="row.argo.syncStatus" /></td>
                 <td><app-status-badge [status]="row.argo.healthStatus" /></td>
