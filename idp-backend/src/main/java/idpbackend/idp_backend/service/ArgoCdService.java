@@ -96,6 +96,12 @@ public class ArgoCdService {
             }
         }
 
+        // ArgoCD only says https when the Ingress names a TLS secret, and here the certificate
+        // lives on the load balancer instead. Every environment is on HTTPS, so report that
+        if (url != null) {
+            url = url.replaceFirst("^http://", "https://");
+        }
+
         return new ApplicationStatus(
                 text(child(status, "sync"), "status"),
                 text(child(status, "health"), "status"),
