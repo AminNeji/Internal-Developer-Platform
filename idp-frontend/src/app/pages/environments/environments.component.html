@@ -51,6 +51,7 @@
               <th>Sync</th>
               <th>Health</th>
               <th>Created</th>
+              <th>Expires</th>
               <th><span class="sr-only">Open</span></th>
             </tr>
           </thead>
@@ -69,6 +70,7 @@
                 <td><app-status-badge [status]="row.argo.syncStatus" /></td>
                 <td><app-status-badge [status]="row.argo.healthStatus" /></td>
                 <td><span class="when">{{ relative(row.createdAt) }}</span></td>
+                <td><span class="when">{{ expiresIn(row.expiresAt) }}</span></td>
                 <td class="chev">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                        stroke-width="2" stroke-linecap="round" aria-hidden="true">

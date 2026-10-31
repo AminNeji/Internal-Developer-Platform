@@ -2,6 +2,8 @@ package idpbackend.idp_backend.service;
 
 
 import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.transport.PushResult;
+import org.eclipse.jgit.transport.RemoteRefUpdate;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,6 +18,8 @@ import java.util.Map;
 @Service
 public class GitOpsService {
 
+    private static final int MAX_PUSH_ATTEMPTS = 3;
+
     @Value("${git.repo.url}")
     private String GIT_REPO_URL;
     @Value("${git.username}")
@@ -24,21 +28,56 @@ public class GitOpsService {
     private String GIT_PASSWORD ;
 
     public void commitAndPushManifests(String namespace, Map<String, String> manifests) throws Exception {
+        commitAndPush("feat(idp): déploiement automatique de l'environnement : " + namespace, (git, localRepoDir) -> {
+            // Création du dossier pour le nouvel environnement dans le repo cloné
+            String targetPathStr = localRepoDir.getAbsolutePath() + "/environments/" + namespace + "/";
+            Files.createDirectories(Paths.get(targetPathStr));
 
-        // 1. Définir un dossier local temporaire pour cloner le repo
-        File localRepoDir = new File("./tmp-gitops-repo");
+            // Écriture de chaque manifeste (Reçu depuis ton TemplateService)
+            for (Map.Entry<String, String> entry : manifests.entrySet()) {
+                Path filePath = Paths.get(targetPathStr + entry.getKey());
+                Files.writeString(filePath, entry.getValue(), StandardCharsets.UTF_8);
+                System.out.println("Fichier préparé pour Git : " + entry.getKey());
+            }
 
-        // Nettoyage si le dossier existe déjà d'un ancien build (optionnel mais recommandé)
-        if (localRepoDir.exists()) {
-            deleteDirectory(localRepoDir);
+            // Git Add : Ajoute tous les nouveaux fichiers au staging
+            git.add()
+                    .addFilepattern(".")
+                    .call();
+        });
+    }
+
+    // does nothing if the folder is already gone, so a retried destroy is safe
+    public void deleteEnvironment(String namespace) throws Exception {
+        commitAndPush("feat(idp): suppression de l'environnement : " + namespace, (git, localRepoDir) ->
+                git.rm()
+                        .addFilepattern("environments/" + namespace)
+                        .call());
+    }
+
+    private void commitAndPush(String message, RepoChange change) throws Exception {
+        // the backend, its other replica and CI all push to this branch, so a push can lose the
+        // race; starting again from a fresh clone puts this change on top of the winner's commit
+        for (int attempt = 1; attempt <= MAX_PUSH_ATTEMPTS; attempt++) {
+            if (tryCommitAndPush(message, change)) {
+                return;
+            }
+            System.out.println("Push rejeté, tentative " + attempt + "/" + MAX_PUSH_ATTEMPTS);
         }
+        throw new IllegalStateException("Push Git rejeté " + MAX_PUSH_ATTEMPTS + " fois : " + message);
+    }
+
+    // false means the remote moved on and the push was rejected
+    private boolean tryCommitAndPush(String message, RepoChange change) throws Exception {
+        // Dossier temporaire propre à cet appel : le job de nettoyage et une requête HTTP
+        // peuvent tourner en même temps et ne doivent pas partager le même clone
+        File localRepoDir = Files.createTempDirectory("idp-gitops-").toFile();
 
         // Configuration de l'authentification Git
         UsernamePasswordCredentialsProvider credentials =
                 new UsernamePasswordCredentialsProvider(GIT_USERNAME, GIT_PASSWORD);
 
         System.out.println("Clonage du dépôt GitOps...");
-        // 2. Clone du dépôt
         try (Git git = Git.cloneRepository()
                 .setURI(GIT_REPO_URL)
                 .setBranch("dev")
@@ -46,41 +85,45 @@ public class GitOpsService {
                 .setCredentialsProvider(credentials)
                 .call()) {
 
-            // 3. Création du dossier pour le nouvel environnement dans le repo cloné
-            // Exemple : ./tmp-gitops-repo/environments/dev/
-            String targetPathStr = localRepoDir.getAbsolutePath() + "/environments/" + namespace + "/";
-            Files.createDirectories(Paths.get(targetPathStr));
+            change.apply(git, localRepoDir);
 
-            // 4. Écriture de chaque manifeste (Reçu depuis ton TemplateService)
-            for (Map.Entry<String, String> entry : manifests.entrySet()) {
-                Path filePath = Paths.get(targetPathStr + entry.getKey());
-                Files.writeString(filePath, entry.getValue(), StandardCharsets.UTF_8);
-                System.out.println("Fichier préparé pour Git : " + entry.getKey());
+            if (git.status().call().isClean()) {
+                return true;
             }
 
-            System.out.println("Exécution de Git Add, Commit et Push...");
+            System.out.println("Exécution de Git Commit et Push...");
 
-            // 5. Git Add : Ajoute tous les nouveaux fichiers au staging
-            git.add()
-                    .addFilepattern(".")
-                    .call();
-
-            // 6. Git Commit
             git.commit()
-                    .setMessage("feat(idp): déploiement automatique de l'environnement : " + namespace)
+                    .setMessage(message)
                     .setAuthor("IDP Platform", "idp@monentreprise.com")
                     .call();
 
-            // 7. Git Push
-            git.push()
-                    .setCredentialsProvider(credentials)
-                    .call();
+            // JGit ne lève pas d'exception quand le push est rejeté :
+            // il faut lire le statut de chaque référence
+            for (PushResult result : git.push().setCredentialsProvider(credentials).call()) {
+                for (RemoteRefUpdate update : result.getRemoteUpdates()) {
+                    if (update.getStatus() == RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD
+                            || update.getStatus() == RemoteRefUpdate.Status.REJECTED_REMOTE_CHANGED) {
+                        return false;
+                    }
+                    if (update.getStatus() != RemoteRefUpdate.Status.OK) {
+                        throw new IllegalStateException("Push Git échoué : " + update.getStatus()
+                                + " " + update.getMessage());
+                    }
+                }
+            }
 
-            System.out.println("Manifestes poussés sur Git avec succès !");
+            System.out.println("Changements poussés sur Git avec succès !");
+            return true;
         } finally {
             // Nettoyage final du dossier temporaire après le push
             deleteDirectory(localRepoDir);
         }
+    }
+
+    @FunctionalInterface
+    private interface RepoChange {
+        void apply(Git git, File localRepoDir) throws Exception;
     }
 
     // Méthode utilitaire pour supprimer un dossier et son contenu de manière récursive

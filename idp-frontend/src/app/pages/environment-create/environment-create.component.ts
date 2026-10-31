@@ -13,11 +13,18 @@ import { Router, RouterLink } from '@angular/router';
 import { CreateEnvironmentReq } from '../../core/environment.model';
 import { EnvironmentService } from '../../core/environment.service';
 
+type EnvVarForm = FormGroup<{
+  name: FormControl<string>;
+  value: FormControl<string>;
+}>;
+
 type ServiceForm = FormGroup<{
   serviceName: FormControl<string>;
   image: FormControl<string>;
   port: FormControl<number>;
   path: FormControl<string>;
+  healthPath: FormControl<string>;
+  env: FormArray<EnvVarForm>;
 }>;
 
 @Component({
@@ -32,6 +39,7 @@ export class EnvironmentCreateComponent {
   private readonly router = inject(Router);
 
   readonly types = ['dev', 'staging', 'preview'];
+  readonly ttlOptions = [1, 8, 24, 72];
 
   readonly submitting = signal(false);
   readonly error = signal<string | null>(null);
@@ -39,6 +47,7 @@ export class EnvironmentCreateComponent {
   readonly form = this.fb.nonNullable.group({
     team: ['', [Validators.required, Validators.maxLength(40)]],
     type: ['dev', [Validators.required]],
+    ttlHours: [24, [Validators.required]],
     services: this.fb.array<ServiceForm>([this.newService()]),
   });
 
@@ -65,7 +74,25 @@ export class EnvironmentCreateComponent {
       image: ['', [Validators.required]],
       port: [8080, [Validators.required, Validators.min(1), Validators.max(65535)]],
       path: ['/', [Validators.required, Validators.pattern(/^\/.*/)]],
+      healthPath: ['/', [Validators.required, Validators.pattern(/^\/.*/)]],
+      env: this.fb.array<EnvVarForm>([]),
     });
+  }
+
+  newEnvVar(): EnvVarForm {
+    return this.fb.nonNullable.group({
+      // the rule Kubernetes applies to variable names; catching it here beats a failed sync
+      name: ['', [Validators.required, Validators.pattern(/^[A-Za-z_][A-Za-z0-9_]*$/)]],
+      value: [''],
+    });
+  }
+
+  addEnvVar(service: ServiceForm): void {
+    service.controls.env.push(this.newEnvVar());
+  }
+
+  removeEnvVar(service: ServiceForm, index: number): void {
+    service.controls.env.removeAt(index);
   }
 
   addService(): void {
@@ -89,7 +116,15 @@ export class EnvironmentCreateComponent {
     this.submitting.set(true);
     this.error.set(null);
 
-    const payload = this.form.getRawValue() as CreateEnvironmentReq;
+    // the form holds variables as a list of rows, the API takes them as a name -> value map
+    const raw = this.form.getRawValue();
+    const payload: CreateEnvironmentReq = {
+      ...raw,
+      services: raw.services.map(service => ({
+        ...service,
+        env: Object.fromEntries(service.env.map(variable => [variable.name, variable.value])),
+      })),
+    };
 
     this.api.create(payload).subscribe({
       next: env => this.router.navigate(['/environments', env.envId]),

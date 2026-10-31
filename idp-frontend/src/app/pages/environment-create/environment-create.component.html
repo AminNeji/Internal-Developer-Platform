@@ -35,6 +35,15 @@
             }
           </select>
         </div>
+
+        <div class="field">
+          <label for="ttl">Destroy after</label>
+          <select id="ttl" formControlName="ttlHours">
+            @for (hours of ttlOptions; track hours) {
+              <option [ngValue]="hours">{{ hours }} {{ hours === 1 ? 'hour' : 'hours' }}</option>
+            }
+          </select>
+        </div>
       </div>
 
       <div class="preview">
@@ -99,6 +108,47 @@
                   <path d="M18 6 6 18M6 6l12 12"></path>
                 </svg>
               </button>
+            }
+          </div>
+
+          <div class="field field--health">
+            <label [for]="'health' + $index">Health check path</label>
+            <input [id]="'health' + $index" type="text" formControlName="healthPath"
+                   placeholder="/" autocomplete="off" spellcheck="false">
+            @if (invalid(svc.controls.healthPath)) {
+              <p class="fielderr">Must start with /</p>
+            }
+          </div>
+
+          <div class="envvars" formArrayName="env">
+            <span class="envlabel">Environment variables</span>
+            @for (variable of svc.controls.env.controls; track variable; let v = $index) {
+              <div class="envrow" [formGroupName]="v">
+                <div class="field">
+                  <input type="text" formControlName="name" placeholder="LOG_LEVEL"
+                         [attr.aria-label]="'Variable ' + (v + 1) + ' name'"
+                         autocomplete="off" spellcheck="false">
+                  @if (invalid(variable.controls.name)) {
+                    <p class="fielderr">Letters, numbers and _ only, not starting with a number.</p>
+                  }
+                </div>
+                <div class="field">
+                  <input type="text" formControlName="value" placeholder="info"
+                         [attr.aria-label]="'Variable ' + (v + 1) + ' value'"
+                         autocomplete="off" spellcheck="false">
+                </div>
+                <button type="button" class="remove" (click)="removeEnvVar(svc, v)"
+                        [attr.aria-label]="'Remove variable ' + (v + 1)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" aria-hidden="true">
+                    <path d="M18 6 6 18M6 6l12 12"></path>
+                  </svg>
+                </button>
+              </div>
+            }
+            <button type="button" class="btn btn--ghost" (click)="addEnvVar(svc)">+ Add variable</button>
+            @if (svc.controls.env.length > 0) {
+              <p class="envnote">Saved in plain text in the public Git repository. Never put passwords or keys here.</p>
             }
           </div>
         </div>

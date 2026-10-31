@@ -3,11 +3,14 @@ export interface ServiceConfig {
   port: number;
   path: string;
   image: string;
+  healthPath: string;
+  env: Record<string, string>;
 }
 
 export interface CreateEnvironmentReq {
   team: string;
   type: string;
+  ttlHours: number;
   services: ServiceConfig[];
 }
 
@@ -22,6 +25,8 @@ export interface Environment {
   createdBy: string | null;
   createdAt: string;
   lastActiveAt: string | null;
+  // null for environments created before TTLs existed; those never expire
+  expiresAt: string | null;
   services: ServiceConfig[];
 }
 

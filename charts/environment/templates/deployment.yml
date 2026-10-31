@@ -20,6 +20,19 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: {{ .port }}
+          {{- with .env }}
+          env:
+            {{- range $name, $value := . }}
+            - name: {{ $name | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .healthPath | default "/" | quote }}
+              port: {{ .port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             requests:
               memory: "256Mi"

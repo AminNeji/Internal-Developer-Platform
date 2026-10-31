@@ -1,8 +1,15 @@
+ingress:
+  host: dev-test-abc123.idplatform.tech
+
 services:
   - serviceName: api
     image: ghcr.io/example/api:1.0
     port: 3000
     path: /api
+    healthPath: /api/health
+    env:
+      LOG_LEVEL: debug
+      GREETING: "hello: world"
   - serviceName: web
     image: nginx:alpine
     port: 80

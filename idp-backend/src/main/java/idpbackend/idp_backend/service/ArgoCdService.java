@@ -6,6 +6,7 @@ import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -58,13 +59,19 @@ public class ArgoCdService {
     }
 
     public void deleteApplication(String envId) {
-        restClient.delete()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/api/v1/applications/{name}")
-                        .queryParam("cascade", true)
-                        .build(envId))
-                .retrieve()
-                .toBodilessEntity();
+        try {
+            restClient.delete()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/api/v1/applications/{name}")
+                            .queryParam("cascade", true)
+                            .build(envId))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpClientErrorException.NotFound alreadyGone) {
+            // an earlier destroy got this far, or the other backend replica's cleanup job did;
+            // not an error, otherwise the database row could never be removed
+            System.out.println("Application ArgoCD déjà supprimée : " + envId);
+        }
     }
 
     // read as a plain Map: Spring Boot 4 parses JSON with Jackson 3, and Jackson 2 types

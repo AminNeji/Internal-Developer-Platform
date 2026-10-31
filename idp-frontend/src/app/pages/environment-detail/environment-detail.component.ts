@@ -3,7 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { catchError, interval, of, switchMap, takeWhile } from 'rxjs';
 import { StatusBadgeComponent } from '../../components/status-badge/status-badge.component';
-import { ApplicationStatus, Environment } from '../../core/environment.model';
+import { ApplicationStatus, Environment, ServiceConfig } from '../../core/environment.model';
 import { EnvironmentService } from '../../core/environment.service';
 
 const UNKNOWN_STATUS: ApplicationStatus = {
@@ -113,6 +113,11 @@ export class EnvironmentDetailComponent implements OnInit {
         );
       },
     });
+  }
+
+  // names only: the page has no reason to show values to everyone who opens it
+  envNames(service: ServiceConfig): string {
+    return Object.keys(service.env ?? {}).join(', ') || '—';
   }
 
   formatDate(iso: string | null): string {

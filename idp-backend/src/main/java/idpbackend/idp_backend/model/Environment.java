@@ -31,6 +31,8 @@ public class Environment {
     private String createdBy;
     private Instant createdAt;
     private Instant lastActiveAt;
+    // null for environments created before TTLs existed; those never expire
+    private Instant expiresAt;
 
     @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL, orphanRemoval = true,
                fetch = FetchType.EAGER)
@@ -113,6 +115,14 @@ public class Environment {
 
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
     }
 
     public Instant getLastActiveAt() {

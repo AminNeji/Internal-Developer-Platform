@@ -59,7 +59,7 @@ public class EnvironmentController {
         }
     }
     @DeleteMapping("/{envid}")
-    public ResponseEntity<Void> deleteEnvironment(@PathVariable String envid) {
+    public ResponseEntity<Void> deleteEnvironment(@PathVariable String envid) throws Exception {
         environmentService.destroy(envid);
         return ResponseEntity.noContent().build();
     }

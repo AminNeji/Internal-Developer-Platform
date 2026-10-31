@@ -62,6 +62,14 @@
         <span class="metalabel">Last active</span>
         <span class="metavalue">{{ formatDate(environment.lastActiveAt) }}</span>
       </div>
+      <div class="metaitem">
+        <span class="metalabel">Destroyed automatically</span>
+        <span class="metavalue">{{ formatDate(environment.expiresAt) }}</span>
+      </div>
+      <div class="metaitem">
+        <span class="metalabel">Created by</span>
+        <span class="metavalue">{{ environment.createdBy || '—' }}</span>
+      </div>
       <div class="metaitem metaitem--wide">
         <span class="metalabel">URL</span>
         @let url = environment.url || argo().url;
@@ -70,7 +78,7 @@
             {{ url }}
           </a>
         } @else {
-          <span class="metavalue muted">Waiting for the load balancer — usually 2–3 minutes</span>
+          <span class="metavalue muted">Waiting for the address — usually a minute or two</span>
         }
       </div>
     </section>
@@ -92,6 +100,8 @@
                 <th>Image</th>
                 <th>Port</th>
                 <th>Path</th>
+                <th>Health check</th>
+                <th>Variables</th>
               </tr>
             </thead>
             <tbody>
@@ -101,6 +111,8 @@
                   <td class="mono">{{ svc.image }}</td>
                   <td class="mono num">{{ svc.port }}</td>
                   <td class="mono">{{ svc.path }}</td>
+                  <td class="mono">{{ svc.healthPath }}</td>
+                  <td class="mono">{{ envNames(svc) }}</td>
                 </tr>
               }
             </tbody>
@@ -113,7 +125,7 @@
       <h2>Destroy this environment</h2>
       <p class="dangernote">
         This deletes the ArgoCD application with cascade, which removes the running workloads
-        from the cluster. The generated manifests stay in the GitOps repository.
+        from the cluster, and removes the environment's values from the GitOps repository.
       </p>
 
       <label class="confirmlabel" for="confirm">

@@ -70,6 +70,29 @@ export class EnvironmentsComponent implements OnInit {
     this.router.navigate(['/environments', envId]);
   }
 
+  expiresIn(iso: string | null): string {
+    if (!iso) {
+      return 'never';
+    }
+
+    const remaining = new Date(iso).getTime() - Date.now();
+    if (Number.isNaN(remaining)) {
+      return '—';
+    }
+    // the cleanup job runs every 5 minutes, so an environment can sit here briefly past its time
+    if (remaining <= 0) {
+      return 'expired';
+    }
+
+    const minutes = Math.ceil(remaining / 60_000);
+    if (minutes < 60) {
+      return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+    }
+
+    const hours = Math.round(minutes / 60);
+    return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+
   relative(iso: string | null): string {
     if (!iso) {
       return '—';

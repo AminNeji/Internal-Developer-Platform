@@ -21,5 +21,6 @@ public class EnvironmentResponse {
     private String createdBy;
     private Instant createdAt;
     private Instant lastActiveAt;
+    private Instant expiresAt;
     private List<ServiceConfig> services;
 }

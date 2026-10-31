@@ -14,6 +14,8 @@ public class CreateEnvironmentReq {
     private String team;
     private String type;
     private List<ServiceConfig> services;
+    // how long the environment lives before CleanupService destroys it
+    private Integer ttlHours;
 
     public String getTeam() {
         return team;
@@ -29,6 +31,14 @@ public class CreateEnvironmentReq {
 
     public void setType(String type) {
         this.type = type;
+    }
+
+    public Integer getTtlHours() {
+        return ttlHours;
+    }
+
+    public void setTtlHours(Integer ttlHours) {
+        this.ttlHours = ttlHours;
     }
 
     public List<ServiceConfig> getServices() {

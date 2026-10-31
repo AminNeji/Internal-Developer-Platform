@@ -154,6 +154,41 @@ input[type='number'] {
   margin-top: 2px;
 }
 
+/* ---------- health path + env vars, each on its own line under the service's main row ---------- */
+.field--health {
+  grid-column: 1 / 3;
+}
+
+.envvars {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.envlabel {
+  font: 500 11px/1 var(--sans);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.envrow {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr 34px;
+  gap: 8px;
+  width: 100%;
+  align-items: start;
+}
+
+.envnote {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--status-outofsync);
+}
+
 /* ---------- id preview ---------- */
 .preview {
   margin-top: 20px;
@@ -240,5 +275,13 @@ input[type='number'] {
 
   .field--remove {
     grid-column: 1;
+  }
+
+  .field--health {
+    grid-column: 1;
+  }
+
+  .envrow {
+    grid-template-columns: 1fr;
   }
 }
