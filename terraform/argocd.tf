@@ -10,6 +10,15 @@ resource "helm_release" "argocd" {
     namespace        = "argocd"
     create_namespace = true
 
+    # the backend logs in as this account. Unlike an admin session, which expires after 24h,
+    # an API key generated for it never expires. Its rights stop at Applications.
+    values = [yamlencode({
+        configs = {
+            cm   = { "accounts.idp-backend" = "apiKey" }
+            rbac = { "policy.csv" = "p, idp-backend, applications, *, */*, allow" }
+        }
+    })]
+
     set = [
         # serve plain HTTP: the backend talks to argocd-server over the cluster network,
         # and the chart's default self-signed certificate would be rejected by the JVM

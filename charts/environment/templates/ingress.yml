@@ -6,8 +6,20 @@ metadata:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    # every Ingress with this group name shares one load balancer, each adding its own rules.
+    # scheme, ports and redirect must match k8s/ingress.yml, which is in the same group
+    alb.ingress.kubernetes.io/group.name: {{ .Values.ingress.groupName | quote }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.ingress.certificateArn | quote }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
 spec:
   ingressClassName: alb
+  {{- if .Values.ingress.host }}
+  # no secretName: the ALB holds the certificate. This is what makes ArgoCD report an https:// URL
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+  {{- end }}
   rules:
     - http:
         paths:

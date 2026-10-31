@@ -6,6 +6,9 @@ metadata:
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
+    # shared with every environment's Ingress (charts/environment/templates/ingress.yml),
+    # so the whole platform runs on one load balancer
+    alb.ingress.kubernetes.io/group.name: idp-shared
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/success-codes: "200"
 
@@ -34,4 +37,4 @@ spec:
               service:
                 name: idp-frontend-service
                 port:
-                  number: 4200
+                  number: 80

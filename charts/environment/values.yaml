@@ -2,6 +2,8 @@ replicas: 1
 
 ingress:
   host: ""
+  groupName: idp-shared
+  # covers idplatform.tech and *.idplatform.tech
+  certificateArn: arn:aws:acm:eu-north-1:516982327726:certificate/d196c797-16f7-4c4e-aef7-fc77ef3dd1bb
 
 services: []
-

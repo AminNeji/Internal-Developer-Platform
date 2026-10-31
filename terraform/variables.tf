@@ -1,3 +1,7 @@
+variable "domain" {
+    type = string
+    default = "idplatform.tech"
+}
 variable "cluster_name" {
     type = string
     default= "idp-cluster"
