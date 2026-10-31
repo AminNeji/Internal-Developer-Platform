@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: idp-frontend
-          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:281459504db12e9822df1660389f7aff5eaf55db
+          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:35f2822dea9dc939550a650b39937376c418ea7d
           ports:
             - containerPort: 80
           # nginx only serves static files, far less than the dev server needed

@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: idp-backend
-          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-backend:281459504db12e9822df1660389f7aff5eaf55db
+          image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-backend:35f2822dea9dc939550a650b39937376c418ea7d
           ports:
             - containerPort: 8082
           resources:
