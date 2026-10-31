@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IDP Runbook: Tear Everything Down</title>
+<link rel="stylesheet" href="runbook.css">
+</head>
+<body>
+
+<h1>Tear everything down</h1>
+<p class="sub">Internal Developer Platform runbook. Stops the AWS bill and keeps your code. About 25 minutes, mostly waiting.</p>
+
+<p class="lead">Run every command in <strong>Git Bash</strong>, starting from the project folder. Do the steps in order.</p>
+
+<pre><code>cd ~/OneDrive/Desktop/IDP\ Project
+aws eks update-kubeconfig --name idp-cluster --region eu-north-1</code></pre>
+
+<div class="warn"><strong>This deletes the portal's database</strong>, which holds the list of environments and login sessions. Every running environment is deleted too. Your code, the Helm chart and the Terraform files are safe in Git.</div>
+
+<p><strong>Why not just run <code>terraform destroy</code>?</strong> Kubernetes creates the load balancer and the database disk, not Terraform, so Terraform doesn't know about them. If they still exist, the destroy gets stuck trying to delete the network underneath them. Steps 1 to 3 remove them first.</p>
+
+<div class="step">
+<h2>1. Stop ArgoCD from recreating things</h2>
+<pre><code>kubectl delete applications --all -n argocd --wait=false</code></pre>
+</div>
+
+<div class="step">
+<h2>2. Delete the load balancer and the database disk</h2>
+<pre><code>kubectl delete ingress --all -A --timeout=180s
+kubectl delete statefulset postgres -n idp-project --ignore-not-found
+kubectl delete pvc --all -n idp-project</code></pre>
+</div>
+
+<div class="step">
+<h2>3. Wait until AWS confirms they're gone <span class="time">1 to 3 minutes</span></h2>
+<p>Paste the whole block. It repeats until both are 0.</p>
+<pre><code>while true; do
+  LB=$(aws elbv2 describe-load-balancers --region eu-north-1 \
+    --query 'length(LoadBalancers)' --output text)
+  VOL=$(aws ec2 describe-volumes --region eu-north-1 \
+    --filters Name=status,Values=available \
+    --query 'length(Volumes)' --output text)
+  echo "load balancers=$LB detached disks=$VOL"
+  [ "$LB" = "0" ] &amp;&amp; [ "$VOL" = "0" ] &amp;&amp; break
+  sleep 15
+done</code></pre>
+<p class="expect">Expected: <code>load balancers=0 detached disks=0</code></p>
+</div>
+
+<div class="step">
+<h2>4. Destroy the infrastructure <span class="time">about 20 minutes</span></h2>
+<pre><code>cd terraform
+terraform destroy -auto-approve
+cd ..</code></pre>
+<p class="expect">Expected at the end: <code>Destroy complete! Resources: 66 destroyed.</code></p>
+<div class="warn"><strong>Keep the PC awake and online until it finishes.</strong> If it's interrupted or fails with a network error, nothing is lost, but you keep paying until it's finished: run <code>terraform destroy -auto-approve</code> again and it continues from where it stopped.</div>
+</div>
+
+<div class="step">
+<h2>5. Confirm nothing billable is left</h2>
+<p>Paste the whole block.</p>
+<pre><code>R=eu-north-1
+echo "clusters:  $(aws eks list-clusters --region $R \
+  --query clusters --output text)"
+echo "instances: $(aws ec2 describe-instances --region $R \
+  --filters Name=instance-state-name,Values=pending,running,stopping,stopped \
+  --query 'Reservations[].Instances[].InstanceId' --output text)"
+echo "ALBs:      $(aws elbv2 describe-load-balancers --region $R \
+  --query 'LoadBalancers[].LoadBalancerName' --output text)"
+echo "disks:     $(aws ec2 describe-volumes --region $R \
+  --query 'Volumes[].VolumeId' --output text)"
+echo "NAT:       $(aws ec2 describe-nat-gateways --region $R \
+  --filter Name=state,Values=pending,available \
+  --query 'NatGateways[].NatGatewayId' --output text)"
+echo "IPs:       $(aws ec2 describe-addresses --region $R \
+  --query 'Addresses[].PublicIp' --output text)"
+echo "Redis:     $(aws elasticache describe-cache-clusters --region $R \
+  --query 'CacheClusters[].CacheClusterId' --output text)"
+echo "ECR:       $(aws ecr describe-repositories --region $R \
+  --query 'repositories[].repositoryName' --output text)"</code></pre>
+<p class="expect">Expected: every line empty after its label.</p>
+</div>
+
+<h2>What stays, on purpose</h2>
+<table>
+<tr><th>Item</th><th>Cost</th><th>Why it stays</th></tr>
+<tr><td>Route 53 hosted zone for idplatform.tech</td><td>$0.50 a month</td><td>The domain's name servers point at it. Deleting it means reconfiguring the domain and validating the certificate again.</td></tr>
+<tr><td>ACM certificate for idplatform.tech and *.idplatform.tech</td><td>Free</td><td>Reused on the next apply.</td></tr>
+<tr><td>GitHub OAuth Apps</td><td>Free</td><td>Reused on the next apply.</td></tr>
+<tr><td>Everything in Git, and your secret files</td><td>Free</td><td>Your project.</td></tr>
+</table>
+<p>The site is unreachable until the next apply. A leftover DNS record for <code>idplatform.tech</code> is harmless: ExternalDNS updates it after the next apply. Folders in <code>environments/</code> for environments that weren't destroyed through the portal stay in Git and are also harmless.</p>
+
+<h2>If something goes wrong</h2>
+<table>
+<tr><th style="width:40%">What you see</th><th>What to do</th></tr>
+<tr><td><code>no such host</code> from kubectl</td><td>Run the <code>update-kubeconfig</code> command at the top of this runbook. If the cluster no longer exists, skip to step 4.</td></tr>
+<tr><td><code>no such host</code> or a timeout from Terraform</td><td>A network blip. Run the destroy again.</td></tr>
+<tr><td><code>Error acquiring the state lock</code></td><td>An earlier run was interrupted. Run <code>terraform force-unlock -force &lt;ID&gt;</code> with the ID it prints, then destroy again.</td></tr>
+<tr><td>Destroy hangs on the VPC, subnets or internet gateway, or <code>DependencyViolation</code></td><td>A load balancer or its security group is still there. Repeat steps 1 to 3, then destroy again. Look for leftover <code>k8s-*</code> entries under EC2 → Load Balancers and Security Groups in the AWS console.</td></tr>
+<tr><td><code>kubectl delete ingress</code> hangs</td><td>The controller may already be gone. Press Ctrl+C and look under EC2 → Load Balancers. If one is there, delete it in the console and then continue with step 3.</td></tr>
+</table>
+
+<h2>Coming back</h2>
+<p>Follow the <strong>Bring everything up</strong> runbook (<code>docs/runbook-apply.pdf</code>).</p>
+
+</body>
+</html>

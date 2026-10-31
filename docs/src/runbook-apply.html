@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IDP Runbook: Bring Everything Up</title>
+<link rel="stylesheet" href="runbook.css">
+</head>
+<body>
+
+<h1>Bring everything up</h1>
+<p class="sub">Internal Developer Platform runbook. From nothing on AWS to a working https://idplatform.tech. About 35 minutes, mostly waiting.</p>
+
+<p class="lead">Run every command in <strong>Git Bash</strong>, starting from the project folder. Do the steps in order.</p>
+
+<pre><code>cd ~/OneDrive/Desktop/IDP\ Project</code></pre>
+
+<h2>Before you start</h2>
+<p><strong>Tools you need:</strong> AWS CLI, Terraform, kubectl, Helm, Git Bash. <strong>Check you're on the right AWS account:</strong></p>
+<pre><code>aws sts get-caller-identity --query Account --output text</code></pre>
+<p class="expect">Expected: <code>516982327726</code></p>
+
+<p><strong>These files are not in Git. They exist only on your PC, so back them up.</strong> Copy the shape from <code>k8s-secret.example.yml</code> if you ever lose one.</p>
+<table>
+<tr><th>File</th><th>Holds</th></tr>
+<tr><td><code>k8s/secret.yml</code></td><td>Database, Git, Redis and ArgoCD passwords, and the GitHub login keys from the <strong>IDP Prod</strong> OAuth App</td></tr>
+<tr><td><code>k8s/database/secret.yml</code></td><td>Postgres name, user and password</td></tr>
+<tr><td><code>idp-backend/.env</code></td><td><code>GIT_PASSWORD</code> and the GitHub login keys from the <strong>IDP Local</strong> OAuth App</td></tr>
+</table>
+
+<div class="step">
+<h2>1. Create the infrastructure <span class="time">about 20 minutes</span></h2>
+<pre><code>cd terraform
+helm repo update
+terraform init
+terraform plan -out=tfplan
+terraform apply tfplan
+cd ..</code></pre>
+<p class="expect">Expected at the end: <code>Apply complete! Resources: 66 added, 0 changed, 0 destroyed.</code></p>
+<p>Keep the PC awake and online. If it stops with a network error such as <code>no such host</code>, nothing is broken: run <code>terraform plan -out=tfplan</code> and <code>terraform apply tfplan</code> again, and it continues from where it stopped.</p>
+</div>
+
+<div class="step">
+<h2>2. Connect kubectl to the new cluster</h2>
+<p>Every new cluster gets a new address, so this is needed after every apply.</p>
+<pre><code>aws eks update-kubeconfig --name idp-cluster --region eu-north-1
+kubectl get nodes</code></pre>
+<p class="expect">Expected: 3 nodes, all <code>Ready</code>.</p>
+</div>
+
+<div class="step">
+<h2>3. Give ArgoCD access to the Git repository</h2>
+<pre><code>GP=$(tr -d '\r' &lt; idp-backend/.env | sed -n 's/^GIT_PASSWORD=//p')
+kubectl create secret generic repo-idp -n argocd \
+  --from-literal=type=git \
+  --from-literal=url=https://github.com/AminNeji/Internal-Developer-Platform.git \
+  --from-literal=username=AminNeji \
+  --from-literal=password="$GP"
+kubectl label secret repo-idp -n argocd \
+  argocd.argoproj.io/secret-type=repository</code></pre>
+</div>
+
+<div class="step">
+<h2>4. Add the secrets and start the platform</h2>
+<pre><code>kubectl apply -f k8s/namespace.yml
+kubectl apply -f k8s/secret.yml
+kubectl apply -f k8s/database/secret.yml
+kubectl apply -f argocd/platfrom-app.yml</code></pre>
+<p>ArgoCD now deploys everything in <code>k8s/</code> from Git. The backend and frontend show <code>ImagePullBackOff</code> until step 6. That's expected.</p>
+</div>
+
+<div class="step">
+<h2>5. Create the ArgoCD token for the backend</h2>
+<p>The token never expires, but it's tied to this cluster, so a new cluster needs a new one. This block creates it, saves it in <code>k8s/secret.yml</code> and applies it. Paste the whole block at once.</p>
+<pre><code>kubectl port-forward svc/argocd-server -n argocd 8089:80 &gt; /dev/null &amp;
+PF=$!; sleep 5
+PW=$(kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d)
+ADMIN=$(curl -s -X POST localhost:8089/api/v1/session \
+  -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"$PW\"}" \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+TOKEN=$(curl -s -X POST localhost:8089/api/v1/account/idp-backend/token \
+  -H "Authorization: Bearer $ADMIN" \
+  -H 'Content-Type: application/json' -d '{}' \
+  | sed -n 's/.*"token":"\([^"]*\)".*/\1/p')
+kill $PF
+echo "token length: ${#TOKEN}"
+[ -n "$TOKEN" ] &amp;&amp; sed -i "s|^\(  ARGOCD_TOKEN:\).*|\1 \"$TOKEN\"|" k8s/secret.yml
+kubectl apply -f k8s/secret.yml</code></pre>
+<p class="expect">Expected: a token length around 250 and <code>secret/app-secret configured</code>. If the length is 0, wait a minute for ArgoCD to finish starting and paste the block again.</p>
+</div>
+
+<div class="step">
+<h2>6. Rebuild the images <span class="time">about 8 minutes</span></h2>
+<p>A destroy empties the image registry, so the images have to be built again.</p>
+<ol>
+<li>Go to github.com/AminNeji/Internal-Developer-Platform/actions</li>
+<li>Open the most recent run on <code>dev</code></li>
+<li>Click <strong>Re-run all jobs</strong> and wait for it to turn green</li>
+</ol>
+<p>GitHub only allows re-runs for 30 days. If it refuses, edit any file outside <code>k8s/</code> and <code>environments/</code> (a line in the README is enough), then commit and push to <code>dev</code>.</p>
+</div>
+
+<div class="step">
+<h2>7. Check that it works <span class="time">about 5 minutes after CI finishes</span></h2>
+<pre><code>kubectl get pods -n idp-project
+kubectl get ingress -n idp-project
+aws route53 list-resource-record-sets --output text \
+  --hosted-zone-id Z043797928Y1HP8AB44R8 \
+  --query "ResourceRecordSets[?Type=='A'].[Name,AliasTarget.DNSName]"
+curl -s -o /dev/null -w '%{http_code}\n' https://idplatform.tech/api/me</code></pre>
+<p class="expect">Expected: 4 pods <code>Running</code>, an A record for <code>idplatform.tech</code> (ExternalDNS creates it within a minute or two, nothing to do by hand), and <code>401</code> from the last line, which means login is protecting the API.</p>
+<p>The backend takes about a minute to start, so a brief <code>502</code> or <code>503</code> is normal.</p>
+<p>Open <strong>https://idplatform.tech</strong>, sign in with GitHub and create a test environment with the image <code>nginx:alpine</code>, port <code>80</code>. It should turn Healthy in about 2 minutes, with a link on its own subdomain.</p>
+</div>
+
+<h2>If something goes wrong</h2>
+<table>
+<tr><th style="width:40%">What you see</th><th>What to do</th></tr>
+<tr><td><code>no such host</code> from kubectl</td><td>Step 2 was skipped. kubectl is pointing at the deleted cluster.</td></tr>
+<tr><td><code>no such host</code> or a timeout from Terraform</td><td>A network blip. Run plan and apply again.</td></tr>
+<tr><td><code>Error acquiring the state lock</code></td><td>An earlier run was interrupted. Run <code>terraform force-unlock -force &lt;ID&gt;</code> with the ID it prints, then try again.</td></tr>
+<tr><td>Helm errors about a chart or repository</td><td>Run <code>helm repo update</code>, then plan and apply again.</td></tr>
+<tr><td>Pods stuck in <code>ImagePullBackOff</code></td><td>Step 6 hasn't finished. If CI is green, wait 3 minutes for ArgoCD to notice.</td></tr>
+<tr><td>Backend in <code>CrashLoopBackOff</code></td><td>Run <code>kubectl logs -n idp-project deploy/idp-backend-deployment --tail=30</code>. <code>Could not resolve placeholder</code> means a key is missing from <code>k8s/secret.yml</code>. Add it, apply the file and run the restart command below.</td></tr>
+<tr><td>Environments show <code>Unknown</code>, or creating one fails</td><td>The ArgoCD token is wrong. Repeat step 5, then restart: <code>kubectl rollout restart deploy/idp-backend-deployment -n idp-project</code></td></tr>
+<tr><td>GitHub says the redirect URI is invalid</td><td>The <strong>IDP Prod</strong> OAuth App's callback must be exactly <code>https://idplatform.tech/api/login/oauth2/code/github</code></td></tr>
+<tr><td>"That GitHub account isn't allowed"</td><td>Add the username to <code>IDP_ALLOWED_USERS</code> in <code>k8s/configmap.yml</code>, comma-separated. Push it, then restart the backend.</td></tr>
+<tr><td>The site name doesn't resolve</td><td>Run <code>kubectl logs -n kube-system deploy/external-dns --tail=20</code>. It only manages records it created, so delete any A record for that name made by hand and it will create its own.</td></tr>
+<tr><td>Terraform says <code>VcpuLimitExceeded</code></td><td>This account allows 8 vCPUs, so a node group can't be replaced while the old one still runs. Scale down or delete the old node group first.</td></tr>
+<tr><td><code>release version 21 not supported</code> when building the backend locally</td><td><code>JAVA_HOME</code> points to JDK 17. Point it to JDK 21.</td></tr>
+</table>
+
+<h2>What it costs while running</h2>
+<p>About <strong>$0.30 an hour, or $7 a day</strong> (rough figures, check your AWS bill): EKS, 3 small nodes, the NAT gateway, the load balancer and Redis. That's why the platform gets destroyed when it isn't in use. See the destroy runbook.</p>
+
+</body>
+</html>

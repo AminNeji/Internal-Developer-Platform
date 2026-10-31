@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IDP Project Guide</title>
+<link rel="stylesheet" href="runbook.css">
+</head>
+<body>
+
+<h1>Internal Developer Platform</h1>
+<p class="sub">The complete project guide: what it does, how every part works, why it was built this way, and how to explain it.</p>
+
+<div class="toc">
+<div>1. The project in one minute</div>
+<div>2. The big picture</div>
+<div>3. What happens, step by step</div>
+<div>4. Backend</div>
+<div>5. Frontend</div>
+<div>6. The Helm chart</div>
+<div>7. GitOps and ArgoCD</div>
+<div>8. Login and security</div>
+<div>9. Networking and DNS</div>
+<div>10. Terraform</div>
+<div>11. CI/CD pipeline</div>
+<div>12. Design decisions</div>
+<div>13. Limits and costs</div>
+<div>14. Everyday commands</div>
+<div>15. Questions you'll be asked</div>
+<div>16. Glossary</div>
+</div>
+
+<h2>1. The project in one minute</h2>
+<p class="lead">Normally, a developer who needs a test environment opens a ticket and waits for someone from DevOps. This platform replaces that with a form. The developer picks a team, a type and the container images to run, and about two minutes later has a live environment at its own HTTPS address.</p>
+<p>Three ideas make it more than a form that calls Kubernetes:</p>
+<ul>
+<li><strong>Git is the source of truth.</strong> The portal doesn't deploy anything. It writes a file to Git, and ArgoCD makes the cluster match. That's GitOps: every environment that ever existed is in the Git history, and any manual change in the cluster gets reverted.</li>
+<li><strong>Environments are temporary.</strong> Each has a lifetime of 1 to 72 hours, and a background job deletes it when time runs out. Forgotten environments are what make cloud bills grow.</li>
+<li><strong>The whole platform is code.</strong> Terraform creates all the AWS infrastructure, and the platform deploys itself through the same GitOps flow it offers users. It can be destroyed and rebuilt from one repository, and it was, repeatedly, to save money.</li>
+</ul>
+
+<h2>2. The big picture</h2>
+<figure>
+<svg viewBox="0 0 760 475" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif" font-size="12" role="img" aria-label="Architecture diagram">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#3b4656"/></marker>
+  </defs>
+  <style>
+    .b{fill:#f3f5f8;stroke:#8a96a6}.k{fill:#e9effc;stroke:#2f53b8}.t{fill:#16202e;text-anchor:middle}.s{font-size:10.5px;fill:#5b6878;text-anchor:middle}.l{stroke:#3b4656;fill:none;marker-end:url(#a)}.c{font-size:10.5px;fill:#3b4656}.g{fill:none;stroke:#b5bfcc;stroke-dasharray:5 4}.h{font-size:11px;font-weight:600;fill:#5b6878}
+  </style>
+  <rect class="g" x="170" y="92" width="400" height="345" rx="8"/>
+  <text class="h" x="185" y="375">EKS cluster (private subnets)</text>
+
+  <rect class="b" x="10" y="20" width="110" height="44" rx="6"/><text class="t" x="65" y="46">Developer</text>
+  <rect class="b" x="250" y="20" width="240" height="44" rx="6"/><text class="t" x="370" y="39">Shared load balancer (ALB)</text><text class="s" x="370" y="54">HTTPS, one per platform</text>
+  <path class="l" d="M120 42H248"/><text class="c" x="150" y="36">https</text>
+
+  <rect class="k" x="185" y="125" width="110" height="46" rx="6"/><text class="t" x="240" y="145">Frontend</text><text class="s" x="240" y="160">Angular on nginx</text>
+  <rect class="k" x="315" y="125" width="110" height="46" rx="6"/><text class="t" x="370" y="145">Backend</text><text class="s" x="370" y="160">Spring Boot, 2 pods</text>
+  <rect class="k" x="445" y="125" width="112" height="46" rx="6"/><text class="t" x="501" y="145">Environments</text><text class="s" x="501" y="160">one namespace each</text>
+  <path class="l" d="M290 64L245 123"/><text class="c" x="212" y="88">/</text>
+  <path class="l" d="M370 64V123"/><text class="c" x="376" y="88">/api</text>
+  <path class="l" d="M450 64L498 123"/><text class="c" x="480" y="84">env-id.domain</text>
+
+  <rect class="k" x="315" y="215" width="110" height="44" rx="6"/><text class="t" x="370" y="241">Postgres</text>
+  <path class="l" d="M370 171V213"/>
+
+  <rect class="k" x="445" y="215" width="112" height="44" rx="6"/><text class="t" x="501" y="241">ArgoCD</text>
+  <path class="l" d="M400 171L470 213"/><text class="c" x="440" y="192">2. create app</text>
+  <path class="l" d="M530 215V173"/><text class="c" x="536" y="197">4. deploy</text>
+
+  <rect class="k" x="185" y="300" width="110" height="44" rx="6"/><text class="t" x="240" y="320">ALB controller</text><text class="s" x="240" y="334">Ingress to ALB rules</text>
+  <rect class="k" x="315" y="300" width="110" height="44" rx="6"/><text class="t" x="370" y="320">ExternalDNS</text><text class="s" x="370" y="334">Ingress to DNS</text>
+  <rect class="k" x="445" y="300" width="112" height="44" rx="6"/><text class="t" x="501" y="320">EBS CSI driver</text><text class="s" x="501" y="334">disk for Postgres</text>
+
+  <rect class="b" x="610" y="125" width="130" height="46" rx="6"/><text class="t" x="675" y="145">GitHub repository</text><text class="s" x="675" y="160">charts, values, k8s</text>
+  <path class="l" d="M420 125C470 82 590 82 640 123"/><text class="c" x="590" y="86">1. commit values.yaml</text>
+  <path class="l" d="M640 171L557 225"/><text class="c" x="608" y="205">3. read</text>
+
+  <rect class="b" x="610" y="300" width="130" height="44" rx="6"/><text class="t" x="675" y="326">Route 53</text>
+  <path class="l" d="M425 322C500 370 570 370 625 346"/>
+
+  <rect class="b" x="10" y="125" width="130" height="46" rx="6"/><text class="t" x="75" y="145">GitHub OAuth</text><text class="s" x="75" y="160">sign-in</text>
+  <path class="l" d="M315 134C260 110 180 108 140 135" stroke-dasharray="4 3"/>
+
+  <rect class="b" x="10" y="380" width="130" height="44" rx="6"/><text class="t" x="75" y="400">GitHub Actions</text><text class="s" x="75" y="414">build, test, scan</text>
+  <rect class="b" x="610" y="380" width="130" height="44" rx="6"/><text class="t" x="675" y="406">ECR (images)</text>
+  <path class="l" d="M140 410C320 460 480 460 610 410"/><text class="c" x="270" y="466">push images, then commit the new tag to Git</text>
+</svg>
+<figcaption>Numbers show the order when creating an environment. Terraform creates everything here except the GitHub services and the pods inside the cluster.</figcaption>
+</figure>
+
+<h3>What lives where</h3>
+<table>
+<tr><th style="width:26%">Folder</th><th>What it is</th></tr>
+<tr><td><code>idp-backend/</code></td><td>Spring Boot 4 API, Java 21</td></tr>
+<tr><td><code>idp-frontend/</code></td><td>Angular 19 portal. <code>Dockerfile</code> runs the dev server (local use), <code>Dockerfile.prod</code> builds for nginx (AWS).</td></tr>
+<tr><td><code>charts/environment/</code></td><td>Helm chart rendered once per environment</td></tr>
+<tr><td><code>environments/&lt;id&gt;/</code></td><td>One <code>values.yaml</code> per environment, written by the backend. Never edit these by hand.</td></tr>
+<tr><td><code>k8s/</code></td><td>The platform's own manifests (backend, frontend, Postgres, Ingress). ArgoCD deploys this folder.</td></tr>
+<tr><td><code>argocd/platfrom-app.yml</code></td><td>The ArgoCD Application that points at <code>k8s/</code>. (The typo in the file name is real, and the commands use it.)</td></tr>
+<tr><td><code>terraform/</code></td><td>All AWS infrastructure</td></tr>
+<tr><td><code>.github/workflows/ci-cd.yml</code></td><td>The pipeline</td></tr>
+<tr><td><code>demo/</code></td><td>Scripts that recorded the demo video (Playwright and ffmpeg)</td></tr>
+</table>
+
+<h2>3. What happens, step by step</h2>
+
+<h3>Creating an environment</h3>
+<ol>
+<li><strong>Form.</strong> Angular validates the input and posts to <code>/api/environment/create</code>, with the session cookie and CSRF header.</li>
+<li><strong>ID.</strong> <code>EnvironmentService.generateEnvId</code> builds something like <code>dev-payments-mw1abc</code>: type, team, then the current time in base 36 so it's unique. Anything outside <code>a-z 0-9 -</code> becomes a dash, because this ID becomes a Kubernetes namespace.</li>
+<li><strong>Values.</strong> <code>TemplateService</code> turns the request into YAML with SnakeYAML: the subdomain plus the list of services.</li>
+<li><strong>Git.</strong> <code>GitOpsService</code> clones the <code>dev</code> branch with JGit into a temp folder, writes <code>environments/&lt;id&gt;/values.yaml</code>, commits and pushes.</li>
+<li><strong>ArgoCD.</strong> <code>ArgoCdService</code> POSTs an Application to ArgoCD's REST API: use the chart at <code>charts/environment</code>, with that values file, in a namespace named after the ID, syncing automatically.</li>
+<li><strong>Database.</strong> The environment and its services are saved in Postgres, with <code>expiresAt</code> set to now plus the TTL.</li>
+<li><strong>Cluster.</strong> ArgoCD renders the chart and applies it. Kubernetes starts the pods.</li>
+<li><strong>Load balancer.</strong> The AWS Load Balancer Controller sees the new Ingress and adds a rule for its host to the shared ALB. Because the ALB already exists, this takes seconds. A new ALB would take 2 to 3 minutes.</li>
+<li><strong>DNS.</strong> ExternalDNS sees the Ingress and creates the Route 53 record.</li>
+<li><strong>Status.</strong> The detail page polls <code>/status</code> every 5 seconds until ArgoCD says Healthy or Degraded, then shows the URL.</li>
+</ol>
+
+<h3>When a create fails</h3>
+<p>Git and ArgoCD can't take part in a database transaction, so <code>createEnvironment</code> rolls back by hand. If the ArgoCD call or the database save throws, it deletes the ArgoCD app and the Git folder, then reports the original error. Each undo step runs even if the other fails. Without this, you'd get an environment running in the cluster that the portal doesn't know about, so nobody could see it or destroy it.</p>
+
+<h3>Destroying an environment</h3>
+<ol>
+<li>Delete the ArgoCD Application with <code>cascade=true</code>, which removes its workloads from the cluster. A 404 counts as success.</li>
+<li>Delete the folder from Git. If it's already gone, nothing happens.</li>
+<li>Delete the database row, last on purpose. If step 1 or 2 fails, the row survives and the destroy can be repeated.</li>
+</ol>
+<p>The controller then removes the environment's ALB rules, and ExternalDNS removes its DNS record. The empty namespace stays behind, because ArgoCD doesn't delete namespaces it created with <code>CreateNamespace=true</code>. It costs nothing, and goes away with the cluster.</p>
+
+<h3>Expiry</h3>
+<p><code>CleanupService.destroyExpired</code> runs every 5 minutes (<code>@Scheduled</code>), finds rows with <code>expiresAt</code> in the past and calls the same <code>destroy</code> as the button. Each destroy has its own try/catch, so one failure doesn't block the others, and the surviving row gets retried next time. Both backend replicas run this job. That's safe because every destroy step can be repeated, so the worst case is one replica logging a harmless error.</p>
+
+<h3>Deploying a change to the platform</h3>
+<ol>
+<li>You push to <code>dev</code>. GitHub Actions builds, tests and scans.</li>
+<li>It builds both Docker images and pushes them to ECR, tagged with the commit SHA.</li>
+<li>It edits the image tag in <code>k8s/backend/deployment.yml</code> and <code>k8s/frontend/deployment.yml</code> using <code>yq</code>, and commits that with <code>[skip ci]</code> so it doesn't trigger itself.</li>
+<li>ArgoCD sees the change (it checks every 3 minutes) and does a rolling update.</li>
+</ol>
+<p>CI has no access to the cluster at all. It only has rights to ECR and to the repository. That's the "pull model" of GitOps.</p>
+
+<h2>4. Backend</h2>
+<p>Spring Boot 4.1 with Java 21. Note that Boot 4 uses <strong>Jackson 3</strong>: Jackson 2 types such as <code>com.fasterxml JsonNode</code> are still on the classpath through fabric8 but fail at runtime, which is why <code>ArgoCdService</code> parses ArgoCD's replies as plain Maps.</p>
+<table>
+<tr><th style="width:30%">Class</th><th>Job</th></tr>
+<tr><td><code>EnvironmentController</code></td><td>REST endpoints under <code>/api/environment</code></td></tr>
+<tr><td><code>AuthController</code></td><td><code>GET /api/me</code>. Also reads the CSRF token, which is what makes Spring set the XSRF cookie for Angular.</td></tr>
+<tr><td><code>EnvironmentService</code></td><td>The main logic: create with rollback, TTL limits, list, status, destroy</td></tr>
+<tr><td><code>TemplateService</code></td><td>Request to <code>values.yaml</code></td></tr>
+<tr><td><code>GitOpsService</code></td><td>Clone, change, commit, push with JGit. Checks each push's status and retries from a fresh clone if rejected, up to 3 times. It needs this because JGit doesn't throw when a push is rejected.</td></tr>
+<tr><td><code>ArgoCdService</code></td><td>Create, delete and read Applications through ArgoCD's REST API</td></tr>
+<tr><td><code>CleanupService</code></td><td>The expiry job</td></tr>
+<tr><td><code>SecurityConfig</code></td><td>Who can reach what: login, CSRF, logout, 401 responses</td></tr>
+<tr><td><code>AllowedUsersService</code></td><td>Rejects GitHub accounts that aren't on the allowed list</td></tr>
+</table>
+
+<h3>Data model</h3>
+<table>
+<tr><th style="width:30%">Table</th><th>Columns</th></tr>
+<tr><td><code>environments</code></td><td>id, env_id, team, type, status, url, created_by, created_at, last_active_at, expires_at</td></tr>
+<tr><td><code>environment_services</code></td><td>id, service_name, port, path, image, health_path, environment_id</td></tr>
+<tr><td><code>environment_service_env</code></td><td>service_id, env_name, env_value</td></tr>
+<tr><td><code>spring_session*</code></td><td>Login sessions, managed by Spring Session</td></tr>
+</table>
+<p>Hibernate creates and updates these on startup (<code>ddl-auto=update</code>). That's convenient for a project this size. A larger production system would use Flyway or Liquibase migrations.</p>
+
+<h3>Configuration</h3>
+<table>
+<tr><th style="width:36%">Variable</th><th>Purpose</th></tr>
+<tr><td><code>GIT_PASSWORD</code></td><td>GitHub token with Contents write on the repository</td></tr>
+<tr><td><code>ARGOCD_URL</code>, <code>ARGOCD_TOKEN</code></td><td>Where ArgoCD is, and the backend's never-expiring key</td></tr>
+<tr><td><code>GITHUB_CLIENT_ID</code>, <code>GITHUB_CLIENT_SECRET</code></td><td>The OAuth App. One app for local, one for production, since GitHub allows only one callback per app.</td></tr>
+<tr><td><code>IDP_ALLOWED_USERS</code></td><td>Comma-separated GitHub usernames allowed to sign in</td></tr>
+<tr><td><code>IDP_DOMAIN</code></td><td>Base domain for environments. Default <code>idplatform.tech</code>.</td></tr>
+<tr><td><code>SPRING_DATASOURCE_*</code></td><td>Database connection</td></tr>
+</table>
+<p>In the cluster, non-secret values come from the ConfigMap <code>app-config</code> and secret ones from the Secret <code>app-secret</code>. To run the backend from a terminal, export the variables first, because <code>mvnw spring-boot:run</code> does not pick up <code>.env</code>:</p>
+<pre><code>cd idp-backend
+set -a; . &lt;(tr -d '\r' &lt; .env); set +a
+JAVA_HOME="/c/Program Files/Java/jdk-21.0.10" ./mvnw spring-boot:run</code></pre>
+
+<h2>5. Frontend</h2>
+<p>Angular 19 with standalone components and signals, lazy-loaded routes and PrimeNG's theme. In AWS it's a static build served by nginx. Locally it's <code>ng serve</code>, with <code>proxy.conf.json</code> forwarding <code>/api</code> to the backend.</p>
+<table>
+<tr><th style="width:36%">File</th><th>Job</th></tr>
+<tr><td><code>core/auth.service.ts</code></td><td>Holds the signed-in user in a signal, and handles login and logout</td></tr>
+<tr><td><code>core/auth.interceptor.ts</code></td><td>Any 401 drops the user back to the sign-in screen</td></tr>
+<tr><td><code>core/environment.service.ts</code></td><td>API calls</td></tr>
+<tr><td><code>pages/environments</code></td><td>List with live status for each environment</td></tr>
+<tr><td><code>pages/environment-create</code></td><td>The form, using nested <code>FormArray</code>s: services, and variables inside each service</td></tr>
+<tr><td><code>pages/environment-detail</code></td><td>Details, status polling, URL, destroy with typed confirmation</td></tr>
+</table>
+<p><code>nginx.conf</code> returns <code>index.html</code> for unknown paths. Routes like <code>/environments/abc</code> exist only in the browser, so without this a page refresh would give a 404. The dev proxy has <code>changeOrigin: false</code> so the backend sees <code>localhost:4200</code> as the host and builds the correct GitHub callback URL.</p>
+
+<h2>6. The Helm chart</h2>
+<p><code>charts/environment</code> loops over <code>.Values.services</code> and renders a Deployment and Service per service, plus one Ingress with a path per service. This is what the backend writes for one environment:</p>
+<pre><code>ingress:
+  host: dev-payments-mw1abc.idplatform.tech
+services:
+  - serviceName: api
+    image: nginx:alpine
+    port: 80
+    path: /
+    healthPath: /
+    env:
+      LOG_LEVEL: info</code></pre>
+<p>The chart's own <code>values.yaml</code> supplies the rest: 1 replica, the ALB group name and the certificate ARN. Test it without a cluster:</p>
+<pre><code>helm template test charts/environment -f charts/environment/ci/test-values.yaml</code></pre>
+<p>The chart replaced an earlier FreeMarker version that generated raw manifests. Now the templates live in one versioned place and each environment contributes only its data.</p>
+
+<h2>7. GitOps and ArgoCD</h2>
+<p>There are two kinds of ArgoCD Application:</p>
+<ul>
+<li><strong><code>idp-platform</code></strong> deploys the portal itself from <code>k8s/</code>. It's applied by hand once, per cluster.</li>
+<li><strong>One per environment</strong>, created by the backend through the API. Each uses the Helm chart with its own values file.</li>
+</ul>
+<p>Both track the <code>dev</code> branch with <strong>automated sync</strong>, <strong>prune</strong> (things removed from Git get removed from the cluster) and <strong>selfHeal</strong> (manual changes in the cluster get reverted). That's why deleting a Deployment by hand doesn't stick: ArgoCD puts it back.</p>
+<p>The backend logs in as a dedicated account, <code>idp-backend</code>, defined in <code>terraform/argocd.tf</code>. Its API key has no expiry, and its rights cover Applications only. It can't, for example, add repositories.</p>
+
+<h2>8. Login and security</h2>
+<h3>How login works</h3>
+<ol>
+<li>Angular calls <code>/api/me</code>. A 401 means nobody is signed in, so it shows the sign-in screen.</li>
+<li>The button navigates to <code>/api/oauth2/authorization/github</code>. Spring redirects the browser to GitHub.</li>
+<li>The user approves. GitHub redirects back to <code>/api/login/oauth2/code/github</code> with a one-time code.</li>
+<li>Spring swaps the code for an access token and fetches the profile.</li>
+<li><code>AllowedUsersService</code> checks the username. If it isn't listed, the user lands on <code>/?denied</code>.</li>
+<li>Spring creates a session and sets a <code>SESSION</code> cookie.</li>
+</ol>
+
+<h3>Compared with JWT</h3>
+<table>
+<tr><th style="width:50%">JWT</th><th>This project (server-side session)</th></tr>
+<tr><td>The token holds the user's data and is signed</td><td>The cookie holds only an ID. The data is in Postgres.</td></tr>
+<tr><td>Hard to revoke before it expires</td><td>Delete the row and the user is signed out</td></tr>
+<tr><td>JavaScript has to store and send it</td><td>The browser sends it automatically, and JavaScript can't read it</td></tr>
+<tr><td>No CSRF risk when sent in a header</td><td>Needs CSRF protection, because cookies are sent automatically</td></tr>
+</table>
+<p>Sessions are in Postgres because there are 2 backend replicas. A session kept in one pod's memory would be lost as soon as the load balancer sent the next request to the other pod.</p>
+
+<h3>CSRF</h3>
+<p>Spring sets a readable <code>XSRF-TOKEN</code> cookie. Angular's HttpClient copies it into an <code>X-XSRF-TOKEN</code> header on POST and DELETE. Another website can make the browser send cookies but can't read them, so it can't produce that header.</p>
+
+<h3>Permissions in AWS</h3>
+<p>Controllers that need AWS access use <strong>IRSA</strong>: an IAM role tied to one Kubernetes service account, with temporary credentials and no stored keys. There are three: <code>idp-alb-controller</code>, <code>idp-ebs-csi</code> and <code>idp-external-dns</code>. ExternalDNS can only change this one hosted zone.</p>
+
+<h3>Secrets</h3>
+<p><code>k8s/secret.yml</code>, <code>k8s/database/secret.yml</code> and <code>.env</code> are gitignored and applied by hand. ArgoCD deploys everything in <code>k8s/</code> from Git, and since these aren't in Git, it never sees them. A step up would be Sealed Secrets or External Secrets.</p>
+
+<h2>9. Networking and DNS</h2>
+<p><strong>The network:</strong> one VPC with public and private subnets in 2 availability zones. Nodes sit in private subnets, and the load balancer in public ones. Outbound traffic from nodes goes through one NAT gateway, which is cheaper than one per zone but is a single point of failure.</p>
+<p><strong>The path of a request:</strong> browser → Route 53 → ALB (HTTPS with the ACM certificate) → directly to the pod's IP (<code>target-type: ip</code>), skipping NodePorts.</p>
+<p><strong>One shared ALB.</strong> Each Ingress normally creates its own ALB, at about $16 to $18 a month each. Giving them all the annotation <code>alb.ingress.kubernetes.io/group.name: idp-shared</code> merges them into one, and each Ingress only adds rules. Settings like scheme, ports and redirect must match across the group, so <code>k8s/ingress.yml</code> and the chart use the same values.</p>
+<p><strong>Rule order matters.</strong> In the portal's Ingress, <code>/api</code> is listed before <code>/</code>, because <code>/</code> matches everything.</p>
+<p><strong>Health checks.</strong> Each Service sets its own check path with an annotation. The backend uses <code>/actuator/health</code>, which is public. Redis is excluded from that check, because the cluster has no Redis host and it would report DOWN (503). If all targets are unhealthy, an ALB "fails open" and sends traffic to them anyway, so a broken health check can look like it's working.</p>
+<p><strong>The certificate.</strong> One ACM certificate covers <code>idplatform.tech</code> and <code>*.idplatform.tech</code>. It's kept outside Terraform so it survives a destroy.</p>
+<p><strong>ExternalDNS.</strong> It watches Ingresses and creates or removes records, with a TXT record marking each one as its own. It never touches records it didn't create. That's why a hand-made record has to be deleted once before it can take over that name.</p>
+
+<h2>10. Terraform</h2>
+<table>
+<tr><th style="width:24%">File</th><th>Creates</th></tr>
+<tr><td><code>main.tf</code></td><td>AWS and Helm providers. Helm fetches a cluster token at apply time, since the cluster doesn't exist at plan time.</td></tr>
+<tr><td><code>vpc.tf</code></td><td>VPC 10.0.0.0/16, 2 public and 2 private subnets, 1 NAT gateway, and the subnet tags the ALB controller looks for</td></tr>
+<tr><td><code>eks.tf</code></td><td>EKS 1.34, 3 t3.small nodes on Amazon Linux 2023, IRSA, EBS CSI add-on</td></tr>
+<tr><td><code>ebs-csi.tf</code></td><td>IAM role for the disk driver. Without the driver, Postgres's volume claim stays Pending forever.</td></tr>
+<tr><td><code>alb-controller.tf</code></td><td>IAM role and Helm release that turns Ingresses into ALB rules</td></tr>
+<tr><td><code>external-dns.tf</code></td><td>IAM role and Helm release for ExternalDNS, plus a lookup of the existing hosted zone</td></tr>
+<tr><td><code>argocd.tf</code></td><td>ArgoCD Helm release, in plain HTTP mode inside the cluster, plus the <code>idp-backend</code> account</td></tr>
+<tr><td><code>ecr.tf</code></td><td>Image repositories for frontend and backend. <code>force_delete</code> lets a destroy remove them with images inside.</td></tr>
+<tr><td><code>elasticache.tf</code>, <code>security-groups.tf</code></td><td>A Redis node and its firewall rule. Nothing uses it yet.</td></tr>
+<tr><td><code>iam.tf</code></td><td>A read-only role left from an earlier design. Nothing uses it.</td></tr>
+</table>
+<p>Terraform stops at the platform's foundations. It installs ArgoCD, and ArgoCD handles everything above that. State is local in <code>terraform/terraform.tfstate</code>, which is gitignored and contains secrets.</p>
+
+<h2>11. CI/CD pipeline</h2>
+<table>
+<tr><th style="width:22%">Job</th><th>What it does</th></tr>
+<tr><td><strong>Build</strong></td><td><code>mvn install</code> on Java 21</td></tr>
+<tr><td><strong>Test</strong></td><td>Starts a real Postgres and runs <code>mvn test</code>. <code>contextLoads</code> boots the whole app, so it catches wiring and config errors. Also runs Checkstyle.</td></tr>
+<tr><td><strong>SecurityScan</strong></td><td>Trivy scans the repository. It's set to <code>exit-code: 0</code>, so it reports problems but doesn't fail the build.</td></tr>
+<tr><td><strong>Build and push</strong></td><td>Only on <code>dev</code>, after the others pass. Builds images, pushes to ECR, commits the new tags, and retries the push if the portal pushed at the same moment.</td></tr>
+</table>
+<p><code>paths-ignore</code> skips the pipeline for changes in <code>k8s/</code> and <code>environments/</code>, so the portal's commits don't trigger builds.</p>
+<p>Repository settings it relies on: secrets <code>AWS_ACCESS_KEY_ID</code> and <code>AWS_SECRET_ACCESS_KEY</code>, and the variable <code>AWS_REGION</code>, in the <code>IDP</code> environment.</p>
+
+<h2>12. Design decisions</h2>
+<table>
+<tr><th style="width:30%">Decision</th><th style="width:37%">Why</th><th>What it gives up</th></tr>
+<tr><td>GitOps, not direct kubectl from the backend</td><td>History, easy rollback, the cluster repairs itself, and the backend needs no cluster credentials</td><td>Slower, and Git becomes a dependency of every create</td></tr>
+<tr><td>Helm chart, not generated manifests</td><td>One template, and each environment is just data</td><td>Needs Helm knowledge</td></tr>
+<tr><td>One namespace per environment</td><td>Isolation, and cleanup is simple</td><td>Many namespaces to look through</td></tr>
+<tr><td>Shared ALB with an Ingress group</td><td>About $16 to $18 a month saved per environment, and faster to become reachable</td><td>All environments share one failure point and a limit of about 100 rules</td></tr>
+<tr><td>Server-side sessions in Postgres</td><td>Works with 2 replicas, and can be revoked instantly</td><td>A database read per request, and needs CSRF protection</td></tr>
+<tr><td>GitHub login with an allowed list</td><td>No passwords to store, and teams already have GitHub accounts</td><td>Depends on GitHub, and the list lives in a ConfigMap</td></tr>
+<tr><td>Postgres in the cluster, not RDS</td><td>Much cheaper for a demo-sized project</td><td>Data is lost on every destroy, and there are no managed backups</td></tr>
+<tr><td>Nginx frontend image</td><td>Far lighter than the dev server, about 32 MB instead of 512 MB requested</td><td>Separate Dockerfiles for local and production</td></tr>
+<tr><td>Rollback by hand, not a saga framework</td><td>Three steps don't justify a framework</td><td>A crash in the middle of a create can still leave leftovers</td></tr>
+</table>
+
+<h2>13. Limits and costs</h2>
+<h3>What it doesn't do</h3>
+<ul>
+<li><strong>Secrets:</strong> environment variables are stored in plain text in a public repository. Don't put passwords in them. The form warns about this.</li>
+<li><strong>Quotas:</strong> nothing limits how many environments a team creates.</li>
+<li><strong>Cluster size:</strong> 3 t3.small nodes allow 33 pods in total, and the platform itself uses about 28. Only about <strong>4 or 5 environment services fit at once</strong>. Beyond that, pods stay Pending. Change <code>instance_types</code> or <code>desired_size</code> in <code>eks.tf</code> for more, within the account's limit of 8 vCPUs.</li>
+<li><strong>Editing:</strong> an environment can't be changed, only destroyed and recreated.</li>
+<li><strong>Environment database:</strong> deployed apps can't request a database.</li>
+<li><strong>Monitoring:</strong> only ArgoCD's health status. No metrics, log search or alerts.</li>
+<li><strong>Terraform state:</strong> local, so only one person can safely run it.</li>
+<li><strong>Debug port:</strong> the backend image starts with a debug agent on 5005. No Service exposes it, but it should be removed from the production image.</li>
+<li><strong>Unused resources:</strong> Redis costs about $13 a month while running and nothing uses it. Remove <code>elasticache.tf</code>, <code>security-groups.tf</code> and its output when you want to save that.</li>
+<li><strong>Old folders:</strong> <code>environments/</code> holds values from before destroy started cleaning up. They do nothing and can be deleted.</li>
+</ul>
+
+<h3>Rough running costs</h3>
+<table>
+<tr><th>Item</th><th>Per hour (approximate)</th></tr>
+<tr><td>EKS control plane</td><td>$0.10</td></tr>
+<tr><td>3 t3.small nodes</td><td>$0.07</td></tr>
+<tr><td>NAT gateway</td><td>$0.05, plus data</td></tr>
+<tr><td>Load balancer</td><td>$0.03</td></tr>
+<tr><td>Redis, disks, DNS</td><td>$0.03</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>About $0.30, or $7 a day</strong></td></tr>
+</table>
+
+<h2>14. Everyday commands</h2>
+<pre><code># See everything
+kubectl get pods -A
+kubectl get applications -n argocd
+
+# Logs
+kubectl logs -n idp-project deploy/idp-backend-deployment --tail=50
+kubectl logs -n kube-system deploy/external-dns --tail=20
+kubectl logs -n kube-system deploy/aws-load-balancer-controller --tail=30
+
+# Why is this environment unhealthy?
+kubectl get pods,ingress -n &lt;env-id&gt;
+kubectl describe pod -n &lt;env-id&gt; &lt;pod-name&gt;
+
+# Open the ArgoCD dashboard at http://localhost:8089 (user admin)
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath='{.data.password}' | base64 -d; echo
+kubectl port-forward svc/argocd-server -n argocd 8089:80
+
+# Restart the backend after changing a secret
+kubectl apply -f k8s/secret.yml
+kubectl rollout restart deploy/idp-backend-deployment -n idp-project
+
+# Is the load balancer happy with a service's pods?
+aws elbv2 describe-target-groups --region eu-north-1 \
+  --query 'TargetGroups[].[TargetGroupName,HealthCheckPath]' --output text</code></pre>
+
+<h3>Common changes</h3>
+<table>
+<tr><th style="width:38%">To change</th><th>Edit</th></tr>
+<tr><td>Who can sign in</td><td><code>IDP_ALLOWED_USERS</code> in <code>k8s/configmap.yml</code>, push, then restart the backend</td></tr>
+<tr><td>TTL limits or default</td><td>The constants at the top of <code>EnvironmentService.java</code>, and the options in the create form</td></tr>
+<tr><td>What each environment pod gets</td><td><code>charts/environment/templates/deployment.yml</code>. Applies through Git on the next sync.</td></tr>
+<tr><td>Node size or count</td><td><code>terraform/eks.tf</code>, then plan and apply</td></tr>
+<tr><td>Domain</td><td><code>variable "domain"</code> in Terraform, <code>IDP_DOMAIN</code>, the host in <code>k8s/ingress.yml</code>, the certificate, and the OAuth App's callback</td></tr>
+</table>
+
+<h2>15. Questions you'll be asked</h2>
+<h3>Why GitOps instead of having the backend call Kubernetes?</h3>
+<p>Git gives a full history of every environment, a simple way to roll back, and self-repair: ArgoCD reverts drift. The backend also never holds cluster credentials, so a compromised backend can't run arbitrary things on the cluster directly. The trade-off is that creates depend on Git and are slower.</p>
+<h3>What happens if ArgoCD goes down?</h3>
+<p>Running environments keep running, since ArgoCD only reconciles. New creates fail at the ArgoCD call and roll back their Git commit. When ArgoCD returns, it catches up from Git.</p>
+<h3>What if the backend crashes in the middle of a create?</h3>
+<p>The rollback code only runs if the process is alive, so a crash between steps can leave a Git folder or an ArgoCD app with no database row. A fuller design would write the intent to the database first and have a job reconcile it. The TTL job doesn't catch this today, since it works from database rows.</p>
+<h3>Why do both replicas run the cleanup job, and isn't that a problem?</h3>
+<p>Every step of destroy can safely be repeated, so running twice causes at most a logged error. For heavier jobs I'd add a lock such as ShedLock.</p>
+<h3>Why sessions and not JWT?</h3>
+<p>The browser is the only client, sessions can be revoked at once, and Spring Security provides them out of the box. The cost is CSRF protection and a shared store, so Postgres holds them for both replicas.</p>
+<h3>How do environments stay isolated from each other?</h3>
+<p>Separate namespaces, which separate names and resources. They aren't a security boundary without NetworkPolicies, so pods can still reach each other across namespaces. I'd add default-deny NetworkPolicies and ResourceQuotas next.</p>
+<h3>How would you scale this to many teams?</h3>
+<p>Quotas per team, cluster autoscaling (Karpenter), remote Terraform state with locking, secrets from a vault, and monitoring. Git pushes become a bottleneck under heavy use, so I'd queue them, and perhaps give environment values their own repository.</p>
+<h3>What was the hardest part?</h3>
+<p>Things that fail quietly. JGit doesn't throw on a rejected push. An ALB fails open, so a broken health check looks fine. <code>--legacy-peer-deps</code> hid a missing dependency until the first production build. Each was found by running against real infrastructure, not by unit tests.</p>
+<h3>How much does it cost, and how did you control that?</h3>
+<p>About $7 a day while running. Environments expire automatically, they share one load balancer, Postgres runs in the cluster instead of RDS, and the whole stack can be destroyed and rebuilt from code when it's not needed.</p>
+
+<h2>16. Glossary</h2>
+<table>
+<tr><td style="width:24%"><strong>ACM</strong></td><td>AWS Certificate Manager, free HTTPS certificates</td></tr>
+<tr><td><strong>ALB</strong></td><td>Application Load Balancer, routes HTTP(S) by host and path</td></tr>
+<tr><td><strong>ArgoCD</strong></td><td>Runs in the cluster and keeps it matching what's in Git</td></tr>
+<tr><td><strong>CSRF</strong></td><td>An attack where another site makes your browser send a request with your cookies</td></tr>
+<tr><td><strong>ECR</strong></td><td>AWS's Docker image registry</td></tr>
+<tr><td><strong>EKS</strong></td><td>AWS's managed Kubernetes</td></tr>
+<tr><td><strong>ExternalDNS</strong></td><td>Keeps DNS records in step with Kubernetes Ingresses</td></tr>
+<tr><td><strong>GitOps</strong></td><td>Git holds the desired state, and an agent makes reality match it</td></tr>
+<tr><td><strong>Helm</strong></td><td>Templates for Kubernetes manifests</td></tr>
+<tr><td><strong>Ingress</strong></td><td>A Kubernetes rule for routing outside traffic to Services</td></tr>
+<tr><td><strong>IRSA</strong></td><td>IAM Roles for Service Accounts, AWS rights for one pod identity without stored keys</td></tr>
+<tr><td><strong>NAT gateway</strong></td><td>Lets private subnets reach the internet without being reachable from it</td></tr>
+<tr><td><strong>OAuth2</strong></td><td>Lets a user sign in through GitHub without giving this app their password</td></tr>
+<tr><td><strong>Route 53</strong></td><td>AWS's DNS</td></tr>
+<tr><td><strong>StatefulSet</strong></td><td>Like a Deployment, for pods with stable identity and disks</td></tr>
+<tr><td><strong>TTL</strong></td><td>Time to live: how long an environment exists before it's destroyed</td></tr>
+</table>
+
+<p style="margin-top:12pt"><strong>Related documents:</strong> <code>docs/runbook-apply.pdf</code> and <code>docs/runbook-destroy.pdf</code> have the exact commands for bringing the platform up and tearing it down.</p>
+
+</body>
+</html>
