@@ -138,11 +138,11 @@ jobs:
 
           #FRONTEND
           docker build \
-            -f idp-frontend/Dockerfile \
+            -f idp-frontend/Dockerfile.prod \
             -t $ECR_REGISTRY/idp-frontend:latest \
             idp-frontend/
           docker build \
-            -f idp-frontend/Dockerfile \
+            -f idp-frontend/Dockerfile.prod \
             -t $ECR_REGISTRY/idp-frontend:$IMAGE_TAG \
             idp-frontend/
           

@@ -17,11 +17,12 @@ spec:
         - name: idp-frontend
           image: 516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-frontend:281459504db12e9822df1660389f7aff5eaf55db
           ports:
-            - containerPort: 4200
+            - containerPort: 80
+          # nginx only serves static files, far less than the dev server needed
           resources:
             requests:
-              memory: "512Mi"
-              cpu: "300m"
+              memory: "32Mi"
+              cpu: "20m"
             limits:
-              memory: "1Gi"
-              cpu: "1000m"
+              memory: "128Mi"
+              cpu: "200m"
