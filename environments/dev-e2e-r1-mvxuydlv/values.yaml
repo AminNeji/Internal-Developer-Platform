@@ -1,9 +1,0 @@
-ingress:
-  host: dev-e2e-r1-mvxuydlv.idplatform.tech
-services:
-- serviceName: web
-  image: nginx:alpine
-  port: 80
-  path: /
-  healthPath: /
-  env: {}
