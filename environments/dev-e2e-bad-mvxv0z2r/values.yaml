@@ -1,9 +1,0 @@
-ingress:
-  host: dev-e2e-bad-mvxv0z2r.idplatform.tech
-services:
-- serviceName: web
-  image: nginx:this-tag-does-not-exist
-  port: 80
-  path: /
-  healthPath: /
-  env: {}
