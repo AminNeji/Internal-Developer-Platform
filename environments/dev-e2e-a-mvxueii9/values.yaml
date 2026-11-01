@@ -1,0 +1,17 @@
+ingress:
+  host: dev-e2e-a-mvxueii9.idplatform.tech
+services:
+- serviceName: web
+  image: nginx:alpine
+  port: 80
+  path: /
+  healthPath: /
+  env:
+    GREETING: hello
+    MODE: e2e
+- serviceName: who
+  image: traefik/whoami:v1.10
+  port: 80
+  path: /whoami
+  healthPath: /health
+  env: {}
