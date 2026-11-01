@@ -1,9 +1,0 @@
-ingress:
-  host: dev-e2e-b-mvxuepyp.idplatform.tech
-services:
-- serviceName: web
-  image: nginx:alpine
-  port: 80
-  path: /
-  healthPath: /
-  env: {}
