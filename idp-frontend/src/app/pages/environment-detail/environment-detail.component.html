@@ -31,11 +31,40 @@
       <div class="idblock">
         <h1>{{ environment.envId }}</h1>
         <div class="badges">
-          <app-status-badge [status]="argo().syncStatus" />
-          <app-status-badge [status]="argo().healthStatus" />
+          @if (building() || environment.status === 'deploying') {
+            <app-status-badge status="Building" />
+          } @else if (buildFailed()) {
+            <app-status-badge status="Build failed" />
+          } @else {
+            <app-status-badge [status]="argo().syncStatus" />
+            <app-status-badge [status]="argo().healthStatus" />
+          }
         </div>
       </div>
     </header>
+
+    @if (building()) {
+      <section class="panel buildnote">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>
+          Building the image from Git. The platform deploys it as soon as the build succeeds,
+          usually within a few minutes.
+          @if (environment.buildUrl) {
+            <a class="link" [href]="environment.buildUrl" target="_blank" rel="noopener">Follow the build on GitHub</a>
+          }
+        </p>
+      </section>
+    } @else if (buildFailed()) {
+      <section class="panel buildnote buildnote--failed">
+        <p>
+          The image build failed, so nothing was deployed. Fix the repository or the Dockerfile,
+          then destroy this environment and create it again.
+          @if (environment.buildUrl) {
+            <a class="link" [href]="environment.buildUrl" target="_blank" rel="noopener">See the build log</a>
+          }
+        </p>
+      </section>
+    }
 
     <section class="panel meta">
       <div class="metaitem">
@@ -108,7 +137,12 @@
               @for (svc of environment.services; track svc.serviceName) {
                 <tr>
                   <td class="mono">{{ svc.serviceName }}</td>
-                  <td class="mono">{{ svc.image }}</td>
+                  <td class="mono">
+                    {{ svc.image }}
+                    @if (svc.gitUrl) {
+                      <div class="source">built from {{ svc.gitUrl }} &#64; {{ svc.gitRef }}</div>
+                    }
+                  </td>
                   <td class="mono num">{{ svc.port }}</td>
                   <td class="mono">{{ svc.path }}</td>
                   <td class="mono">{{ svc.healthPath }}</td>

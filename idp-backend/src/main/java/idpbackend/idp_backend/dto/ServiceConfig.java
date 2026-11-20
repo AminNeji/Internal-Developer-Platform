@@ -14,6 +14,15 @@ public class ServiceConfig {
     private String image;
     private String healthPath;
     private Map<String, String> env;
+    // set instead of image when the platform builds the image from a Git repository
+    private String gitUrl;
+    private String gitRef;
+    private String dockerfilePath;
+
+    // not a getter on purpose, so Jackson leaves it out of the JSON
+    public boolean builtFromGit() {
+        return gitUrl != null && !gitUrl.isBlank();
+    }
 
     // both are optional in the request, and rows created before they existed hold null
     public String getHealthPath() {

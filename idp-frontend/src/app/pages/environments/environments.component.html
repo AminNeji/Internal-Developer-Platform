@@ -68,7 +68,15 @@
                   </div>
                 </td>
                 <td><app-status-badge [status]="row.argo.syncStatus" /></td>
-                <td><app-status-badge [status]="row.argo.healthStatus" /></td>
+                <td>
+                  @if (row.status === 'building' || row.status === 'deploying') {
+                    <app-status-badge status="Building" />
+                  } @else if (row.status === 'build_failed') {
+                    <app-status-badge status="Build failed" />
+                  } @else {
+                    <app-status-badge [status]="row.argo.healthStatus" />
+                  }
+                </td>
                 <td><span class="when">{{ relative(row.createdAt) }}</span></td>
                 <td><span class="when">{{ expiresIn(row.expiresAt) }}</span></td>
                 <td class="chev">

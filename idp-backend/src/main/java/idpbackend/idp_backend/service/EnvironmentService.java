@@ -7,18 +7,36 @@ import idpbackend.idp_backend.dto.ServiceConfig;
 import idpbackend.idp_backend.model.Environment;
 import idpbackend.idp_backend.repository.EnvironmentRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Service
 public class EnvironmentService {
     private static final int DEFAULT_TTL_HOURS = 24;
     private static final int MIN_TTL_HOURS = 1;
     private static final int MAX_TTL_HOURS = 72;
+
+    // building: the image build runs on GitHub Actions; deploying: BuildWatcher is deploying it;
+    // active: deployed (environments with ready-made images start here); build_failed: stays until destroyed or expired
+    public static final String STATUS_BUILDING = "building";
+    public static final String STATUS_DEPLOYING = "deploying";
+    public static final String STATUS_ACTIVE = "active";
+    public static final String STATUS_BUILD_FAILED = "build_failed";
+
+    // these values end up in a GitHub Actions run, so only plain, safe characters get through.
+    // Public GitHub repositories only: private ones would need the developer's own token
+    private static final Pattern GIT_URL = Pattern.compile("^https://github\\.com/[\\w.-]+/[\\w.-]+$");
+    private static final Pattern GIT_REF = Pattern.compile("^\\w[\\w./-]{0,99}$");
+    private static final Pattern DOCKERFILE_PATH = Pattern.compile("^\\w[\\w./-]{0,199}$");
+    // it becomes part of the image tag
+    private static final Pattern SERVICE_NAME = Pattern.compile("^[a-z0-9-]{1,40}$");
 
     @Autowired
     private EnvironmentRepository environmentRepository;
@@ -28,6 +46,8 @@ public class EnvironmentService {
     private GitOpsService gitOpsService;
     @Autowired
     private ArgoCdService argoCdService;
+    @Autowired
+    private BuildService buildService;
     EnvironmentService(EnvironmentRepository environmentRepository) {
         this.environmentRepository = environmentRepository;
     }
@@ -36,6 +56,12 @@ public class EnvironmentService {
     public EnvironmentResponse createEnvironment(CreateEnvironmentReq req, String createdBy) throws Exception {
 
         String envId = generateEnvId(req);
+
+        List<ServiceConfig> services = req.getServices() == null ? List.of() : req.getServices();
+        validateSources(services);
+        if (services.stream().anyMatch(ServiceConfig::builtFromGit)) {
+            return startBuild(envId, req, createdBy);
+        }
 
         // Generate the template using the TemplateService
         Map<String,String> generatedManifests = templateService.generateTemplate(envId, req);
@@ -57,8 +83,75 @@ public class EnvironmentService {
         }
     }
 
+    // the image doesn't exist yet: save the environment as "building" and start the build.
+    // BuildWatcher deploys it when the build succeeds, through deployBuilt below
+    private EnvironmentResponse startBuild(String envId, CreateEnvironmentReq req, String createdBy) {
+        for (ServiceConfig service : req.getServices()) {
+            if (service.builtFromGit()) {
+                service.setImage(buildService.imageFor(envId, service.getServiceName()));
+                service.setGitRef(BuildService.gitRefOf(service));
+                service.setDockerfilePath(BuildService.dockerfileOf(service));
+            }
+        }
+
+        Environment environment = buildEnvironment(envId, req, createdBy);
+        environment.setStatus(STATUS_BUILDING);
+        environment.setBuildStartedAt(Instant.now());
+        Environment saved = environmentRepository.save(environment);
+
+        try {
+            buildService.startBuild(envId, req.getServices());
+        } catch (RuntimeException e) {
+            // nothing was built or pushed to Git yet, so removing the row undoes everything
+            environmentRepository.delete(saved);
+            throw e;
+        }
+        return toResponse(saved);
+    }
+
+    // the same steps as createEnvironment, from the saved environment; each one is safe to repeat
+    public void deployBuilt(Environment environment) throws Exception {
+        String envId = environment.getEnvId();
+        CreateEnvironmentReq req = new CreateEnvironmentReq(environment.getTeam(), environment.getType(),
+                environment.getServices().stream().map(this::toConfig).toList(), null);
+
+        gitOpsService.commitAndPushManifests(envId, templateService.generateTemplate(envId, req));
+        argoCdService.createApplication(envId, envId);
+    }
+
+    // each service needs exactly one source: a ready-made image, or a Git repository to build
+    private void validateSources(List<ServiceConfig> services) {
+        for (ServiceConfig service : services) {
+            boolean hasImage = service.getImage() != null && !service.getImage().isBlank();
+            if (hasImage == service.builtFromGit()) {
+                throw badRequest("Service " + service.getServiceName() + " : donnez une image ou un dépôt Git, pas les deux");
+            }
+            if (!service.builtFromGit()) {
+                continue;
+            }
+            if (service.getServiceName() == null || !SERVICE_NAME.matcher(service.getServiceName()).matches()) {
+                throw badRequest("Nom de service invalide : " + service.getServiceName());
+            }
+            if (!GIT_URL.matcher(service.getGitUrl()).matches()) {
+                throw badRequest("Dépôt Git invalide, format attendu https://github.com/owner/repo : " + service.getGitUrl());
+            }
+            String ref = BuildService.gitRefOf(service);
+            String dockerfile = BuildService.dockerfileOf(service);
+            if (!GIT_REF.matcher(ref).matches() || ref.contains("..")) {
+                throw badRequest("Branche invalide : " + ref);
+            }
+            if (!DOCKERFILE_PATH.matcher(dockerfile).matches() || dockerfile.contains("..")) {
+                throw badRequest("Chemin du Dockerfile invalide : " + dockerfile);
+            }
+        }
+    }
+
+    private static ResponseStatusException badRequest(String message) {
+        return new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+    }
+
     // best effort: each step runs even if the other fails, and the original error is the one reported
-    private void rollback(String envId) {
+    void rollback(String envId) {
         try {
             argoCdService.deleteApplication(envId);
         } catch (Exception e) {
@@ -82,7 +175,7 @@ public class EnvironmentService {
         environment.setEnvId(envId);
         environment.setTeam(req.getTeam());
         environment.setType(req.getType());
-        environment.setStatus("active");
+        environment.setStatus(STATUS_ACTIVE);
         environment.setCreatedBy(createdBy);
         environment.setCreatedAt(Instant.now());
         environment.setExpiresAt(Instant.now().plus(resolveTtlHours(req.getTtlHours()), ChronoUnit.HOURS));
@@ -97,6 +190,9 @@ public class EnvironmentService {
                 service.setImage(config.getImage());
                 service.setHealthPath(config.getHealthPath());
                 service.getEnv().putAll(config.getEnv());
+                service.setGitUrl(config.getGitUrl());
+                service.setGitRef(config.getGitRef());
+                service.setDockerfilePath(config.getDockerfilePath());
                 environment.addService(service);
             }
         }
@@ -124,6 +220,11 @@ public class EnvironmentService {
             return null;
         }
 
+        // no ArgoCD application exists until the image is built
+        if (STATUS_BUILDING.equals(environment.getStatus()) || STATUS_BUILD_FAILED.equals(environment.getStatus())) {
+            return new ArgoCdService.ApplicationStatus("Unknown", "Unknown", null);
+        }
+
         ArgoCdService.ApplicationStatus status = argoCdService.getApplicationStatus(envId);
         if (status.url() != null && !status.url().equals(environment.getUrl())) {
             environment.setUrl(status.url());
@@ -148,13 +249,7 @@ public class EnvironmentService {
     private EnvironmentResponse toResponse(Environment environment) {
         List<ServiceConfig> services = environment.getServices()
                 .stream()
-                .map(service -> new ServiceConfig(
-                        service.getServiceName(),
-                        service.getPort(),
-                        service.getPath(),
-                        service.getImage(),
-                        service.getHealthPath(),
-                        service.getEnv()))
+                .map(this::toConfig)
                 .toList();
 
         return new EnvironmentResponse(
@@ -168,7 +263,21 @@ public class EnvironmentService {
                 environment.getCreatedAt(),
                 environment.getLastActiveAt(),
                 environment.getExpiresAt(),
-                services);
+                services,
+                environment.getBuildUrl());
+    }
+
+    private ServiceConfig toConfig(idpbackend.idp_backend.model.Service service) {
+        return new ServiceConfig(
+                service.getServiceName(),
+                service.getPort(),
+                service.getPath(),
+                service.getImage(),
+                service.getHealthPath(),
+                service.getEnv(),
+                service.getGitUrl(),
+                service.getGitRef(),
+                service.getDockerfilePath());
     }
 
     // the envId becomes a Kubernetes namespace and an ArgoCD app name, so it must be a

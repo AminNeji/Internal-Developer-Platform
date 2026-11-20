@@ -10,7 +10,8 @@ type Tone = 'healthy' | 'outofsync' | 'progressing' | 'degraded' | 'unknown';
   styleUrl: './status-badge.component.scss',
 })
 export class StatusBadgeComponent {
-  readonly status = input.required<SyncStatus | HealthStatus>();
+  // Building and Build failed come from the platform itself, before ArgoCD has anything to report
+  readonly status = input.required<SyncStatus | HealthStatus | 'Building' | 'Build failed'>();
 
   readonly tone = computed<Tone>(() => {
     switch (this.status()) {
@@ -20,8 +21,10 @@ export class StatusBadgeComponent {
       case 'OutOfSync':
         return 'outofsync';
       case 'Progressing':
+      case 'Building':
         return 'progressing';
       case 'Degraded':
+      case 'Build failed':
         return 'degraded';
       default:
         return 'unknown';

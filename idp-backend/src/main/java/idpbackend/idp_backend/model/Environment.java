@@ -33,6 +33,9 @@ public class Environment {
     private Instant lastActiveAt;
     // null for environments created before TTLs existed; those never expire
     private Instant expiresAt;
+    // set only for environments built from Git: when the build started, and its GitHub Actions page
+    private Instant buildStartedAt;
+    private String buildUrl;
 
     @OneToMany(mappedBy = "environment", cascade = CascadeType.ALL, orphanRemoval = true,
                fetch = FetchType.EAGER)

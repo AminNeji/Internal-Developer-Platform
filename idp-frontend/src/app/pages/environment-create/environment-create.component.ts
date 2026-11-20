@@ -18,9 +18,15 @@ type EnvVarForm = FormGroup<{
   value: FormControl<string>;
 }>;
 
+type Source = 'image' | 'git';
+
 type ServiceForm = FormGroup<{
   serviceName: FormControl<string>;
+  source: FormControl<Source>;
   image: FormControl<string>;
+  gitUrl: FormControl<string>;
+  gitRef: FormControl<string>;
+  dockerfilePath: FormControl<string>;
   port: FormControl<number>;
   path: FormControl<string>;
   healthPath: FormControl<string>;
@@ -71,7 +77,18 @@ export class EnvironmentCreateComponent {
   newService(): ServiceForm {
     return this.fb.nonNullable.group({
       serviceName: ['', [Validators.required, Validators.pattern(/^[a-z0-9-]+$/)]],
+      source: this.fb.nonNullable.control<Source>('image'),
       image: ['', [Validators.required]],
+      // the same rules the backend applies; the Git fields stay disabled, so unchecked, until chosen
+      gitUrl: [
+        { value: '', disabled: true },
+        [Validators.required, Validators.pattern(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+$/)],
+      ],
+      gitRef: [{ value: 'main', disabled: true }, [Validators.required, Validators.pattern(/^\w[\w./-]*$/)]],
+      dockerfilePath: [
+        { value: 'Dockerfile', disabled: true },
+        [Validators.required, Validators.pattern(/^\w[\w./-]*$/)],
+      ],
       port: [8080, [Validators.required, Validators.min(1), Validators.max(65535)]],
       path: ['/', [Validators.required, Validators.pattern(/^\/.*/)]],
       healthPath: ['/', [Validators.required, Validators.pattern(/^\/.*/)]],
@@ -93,6 +110,19 @@ export class EnvironmentCreateComponent {
 
   removeEnvVar(service: ServiceForm, index: number): void {
     service.controls.env.removeAt(index);
+  }
+
+  // a service runs either a ready-made image or one the platform builds from a Git repository
+  setSource(service: ServiceForm, source: Source): void {
+    service.controls.source.setValue(source);
+    const git = [service.controls.gitUrl, service.controls.gitRef, service.controls.dockerfilePath];
+    if (source === 'git') {
+      service.controls.image.disable();
+      git.forEach(control => control.enable());
+    } else {
+      service.controls.image.enable();
+      git.forEach(control => control.disable());
+    }
   }
 
   addService(): void {
@@ -120,8 +150,10 @@ export class EnvironmentCreateComponent {
     const raw = this.form.getRawValue();
     const payload: CreateEnvironmentReq = {
       ...raw,
-      services: raw.services.map(service => ({
+      services: raw.services.map(({ source, gitUrl, gitRef, dockerfilePath, image, ...service }) => ({
         ...service,
+        // send only the chosen source: the backend rejects a service that has both
+        ...(source === 'git' ? { image: '', gitUrl, gitRef, dockerfilePath } : { image }),
         env: Object.fromEntries(service.env.map(variable => [variable.name, variable.value])),
       })),
     };

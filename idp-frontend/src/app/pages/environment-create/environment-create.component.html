@@ -73,14 +73,25 @@
             }
           </div>
 
-          <div class="field">
-            <label [for]="'image' + $index">Image</label>
-            <input [id]="'image' + $index" type="text" formControlName="image"
-                   placeholder="nginx:alpine" autocomplete="off" spellcheck="false">
-            @if (invalid(svc.controls.image)) {
-              <p class="fielderr">An image reference is required.</p>
-            }
-          </div>
+          @if (svc.controls.source.value === 'image') {
+            <div class="field">
+              <label [for]="'image' + $index">Image</label>
+              <input [id]="'image' + $index" type="text" formControlName="image"
+                     placeholder="nginx:alpine" autocomplete="off" spellcheck="false">
+              @if (invalid(svc.controls.image)) {
+                <p class="fielderr">An image reference is required.</p>
+              }
+            </div>
+          } @else {
+            <div class="field">
+              <label [for]="'giturl' + $index">Git repository</label>
+              <input [id]="'giturl' + $index" type="text" formControlName="gitUrl"
+                     placeholder="https://github.com/owner/repo" autocomplete="off" spellcheck="false">
+              @if (invalid(svc.controls.gitUrl)) {
+                <p class="fielderr">A public GitHub repository: https://github.com/owner/repo</p>
+              }
+            </div>
+          }
 
           <div class="field field--port">
             <label [for]="'port' + $index">Port</label>
@@ -110,6 +121,45 @@
               </button>
             }
           </div>
+
+          <div class="sourcerow" role="radiogroup" [attr.aria-label]="'Source of service ' + ($index + 1)">
+            <span class="envlabel">Source</span>
+            <div class="segmented">
+              <button type="button" role="radio"
+                      [class.on]="svc.controls.source.value === 'image'"
+                      [attr.aria-checked]="svc.controls.source.value === 'image'"
+                      (click)="setSource(svc, 'image')">Docker image</button>
+              <button type="button" role="radio"
+                      [class.on]="svc.controls.source.value === 'git'"
+                      [attr.aria-checked]="svc.controls.source.value === 'git'"
+                      (click)="setSource(svc, 'git')">Build from Git</button>
+            </div>
+          </div>
+
+          @if (svc.controls.source.value === 'git') {
+            <div class="gitrow">
+              <div class="field">
+                <label [for]="'gitref' + $index">Branch or tag</label>
+                <input [id]="'gitref' + $index" type="text" formControlName="gitRef"
+                       placeholder="main" autocomplete="off" spellcheck="false">
+                @if (invalid(svc.controls.gitRef)) {
+                  <p class="fielderr">Letters, numbers, and . _ / - only.</p>
+                }
+              </div>
+              <div class="field">
+                <label [for]="'dockerfile' + $index">Dockerfile path</label>
+                <input [id]="'dockerfile' + $index" type="text" formControlName="dockerfilePath"
+                       placeholder="Dockerfile" autocomplete="off" spellcheck="false">
+                @if (invalid(svc.controls.dockerfilePath)) {
+                  <p class="fielderr">A path inside the repository, such as Dockerfile or api/Dockerfile.</p>
+                }
+              </div>
+              <p class="gitnote">
+                GitHub Actions builds the image, which takes a few minutes, then the platform deploys it.
+                The build uses the repository root as its context.
+              </p>
+            </div>
+          }
 
           <div class="field field--health">
             <label [for]="'health' + $index">Health check path</label>

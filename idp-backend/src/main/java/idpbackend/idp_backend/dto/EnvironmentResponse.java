@@ -23,4 +23,6 @@ public class EnvironmentResponse {
     private Instant lastActiveAt;
     private Instant expiresAt;
     private List<ServiceConfig> services;
+    // GitHub Actions page of the image build; null when no image was built
+    private String buildUrl;
 }

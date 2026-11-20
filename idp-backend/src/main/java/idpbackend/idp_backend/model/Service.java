@@ -28,6 +28,10 @@ public class Service {
     private String path;
     private String image;
     private String healthPath;
+    // null for services that use a ready-made image; see ServiceConfig
+    private String gitUrl;
+    private String gitRef;
+    private String dockerfilePath;
 
     // FetchMode.SELECT: a join here would repeat each service once per variable,
     // and Environment.services is a List, so the duplicates would end up in it

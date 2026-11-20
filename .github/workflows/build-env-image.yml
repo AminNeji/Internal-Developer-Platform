@@ -1,0 +1,63 @@
+# Builds the images for an environment whose services come from Git repositories.
+# Started by the backend (BuildService) through the GitHub API, never by a push.
+# The run name is how the backend finds this run again, so keep it "Build <env_id>".
+name: Build environment images
+run-name: Build ${{ inputs.env_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      env_id:
+        description: Environment ID
+        required: true
+        type: string
+      services:
+        description: 'JSON list of {name, gitUrl, gitRef, dockerfile, image}'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.service.name }}
+    runs-on: ubuntu-latest
+    environment: IDP
+    timeout-minutes: 20
+    strategy:
+      # one broken service fails the whole environment, so stop the others early
+      fail-fast: true
+      matrix:
+        service: ${{ fromJSON(inputs.services) }}
+    steps:
+      # the developer's code runs during docker build, so nothing secret exists yet:
+      # the platform repository isn't checked out, and the AWS keys come after the build.
+      # Values go through env, never straight into the script, so they can't inject commands
+      - name: Clone the app repository
+        env:
+          GIT_URL: ${{ matrix.service.gitUrl }}
+          GIT_REF: ${{ matrix.service.gitRef }}
+        run: git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" app
+
+      - name: Build the image
+        env:
+          DOCKERFILE: ${{ matrix.service.dockerfile }}
+          IMAGE: ${{ matrix.service.image }}
+        # the cluster's nodes are x86, whatever machine the developer uses
+        run: docker build --platform linux/amd64 -f "app/$DOCKERFILE" -t "$IMAGE" app
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push the image
+        env:
+          IMAGE: ${{ matrix.service.image }}
+        run: docker push "$IMAGE"

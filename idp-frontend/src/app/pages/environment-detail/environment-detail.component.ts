@@ -39,6 +39,9 @@ export class EnvironmentDetailComponent implements OnInit {
   readonly destroying = signal(false);
   readonly destroyError = signal<string | null>(null);
 
+  readonly building = computed(() => this.env()?.status === 'building');
+  readonly buildFailed = computed(() => this.env()?.status === 'build_failed');
+
   readonly canDestroy = computed(
     () => this.confirmText().trim() === this.envId() && !this.destroying(),
   );
@@ -57,7 +60,11 @@ export class EnvironmentDetailComponent implements OnInit {
       next: env => {
         this.env.set(env);
         this.loading.set(false);
-        this.loadStatus();
+        if (env.status === 'building' || env.status === 'deploying') {
+          this.pollBuild();
+        } else {
+          this.loadStatus();
+        }
       },
       error: () => {
         this.loading.set(false);
@@ -74,6 +81,26 @@ export class EnvironmentDetailComponent implements OnInit {
         this.argo.set(status);
         if (!isSettled(status)) {
           this.pollStatus();
+        }
+      });
+  }
+
+  // while the image builds there is nothing in ArgoCD yet, so watch the environment itself;
+  // once the backend has deployed it, switch to following ArgoCD
+  private pollBuild(): void {
+    interval(10000)
+      .pipe(
+        switchMap(() => this.api.getByEnvId(this.envId()).pipe(catchError(() => of(null)))),
+        takeWhile(env => !env || env.status === 'building' || env.status === 'deploying', true),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(env => {
+        if (!env) {
+          return;
+        }
+        this.env.set(env);
+        if (env.status === 'active') {
+          this.loadStatus();
         }
       });
   }

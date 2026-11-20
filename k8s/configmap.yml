@@ -10,3 +10,5 @@ data:
   ARGOCD_URL: "http://argocd-server.argocd.svc.cluster.local"
   # comma-separated GitHub usernames allowed to sign in
   IDP_ALLOWED_USERS: "AminNeji"
+  # where images built from developers' Git repositories are pushed (BuildService)
+  IDP_BUILD_IMAGE_REPOSITORY: "516982327726.dkr.ecr.eu-north-1.amazonaws.com/idp-user-apps"

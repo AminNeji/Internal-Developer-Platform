@@ -5,6 +5,10 @@ export interface ServiceConfig {
   image: string;
   healthPath: string;
   env: Record<string, string>;
+  // set instead of a ready-made image when the platform builds the image from Git
+  gitUrl?: string | null;
+  gitRef?: string | null;
+  dockerfilePath?: string | null;
 }
 
 export interface CreateEnvironmentReq {
@@ -28,6 +32,8 @@ export interface Environment {
   // null for environments created before TTLs existed; those never expire
   expiresAt: string | null;
   services: ServiceConfig[];
+  // GitHub Actions page of the image build; null when no image was built
+  buildUrl: string | null;
 }
 
 export type SyncStatus = 'Synced' | 'OutOfSync' | 'Unknown';
