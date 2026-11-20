@@ -9,3 +9,22 @@ resource "aws_ecr_repository" "idp_registry" {
     }
     force_delete = true
 }
+
+# environments live 72 hours at most, so their built images aren't needed after that
+resource "aws_ecr_lifecycle_policy" "user_apps" {
+    repository = aws_ecr_repository.idp_registry["idp-user-apps"].name
+
+    policy = jsonencode({
+        rules = [{
+            rulePriority = 1
+            description  = "Delete images 4 days after they are pushed"
+            selection = {
+                tagStatus   = "any"
+                countType   = "sinceImagePushed"
+                countUnit   = "days"
+                countNumber = 4
+            }
+            action = { type = "expire" }
+        }]
+    })
+}

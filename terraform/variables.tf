@@ -11,6 +11,8 @@ variable "ecr_repositories" {
   type        = list(string)
   default     = [
     "idp-frontend",
-    "idp-backend"
+    "idp-backend",
+    # images the platform builds from developers' Git repositories
+    "idp-user-apps"
   ]
 }
